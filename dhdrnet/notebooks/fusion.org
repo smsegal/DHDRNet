@@ -1,0 +1,18 @@
+* Lets see if we can do a jupyter notebook inside org-mode
+
+#+BEGIN_SRC jupyter-python :session py :kernel dhdrnet
+import cv2 as cv
+print(cv.__version__)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# [goto error]
+:
+: ModuleNotFoundErrorTraceback (most recent call last)
+: <ipython-input-7-67731c7e2e89> in <module>
+: ----> 1 import cv2 as cv
+:       2 print(cv.__version__)
+:
+: ModuleNotFoundError: No module named 'cv2'
+:END:
