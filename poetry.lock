@@ -568,6 +568,17 @@ traitlets = ">=4.1"
 test = ["testpath", "pytest", "pytest-cov"]
 
 [[package]]
+category = "dev"
+description = "Strips outputs from Jupyter and IPython notebooks"
+name = "nbstripout"
+optional = false
+python-versions = "*"
+version = "0.3.7"
+
+[package.dependencies]
+nbformat = "*"
+
+[[package]]
 category = "main"
 description = "Python package for creating and manipulating graphs and networks"
 name = "networkx"
@@ -1125,7 +1136,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools"]
 
 [metadata]
-content-hash = "6506d6ee0db604b50746bc26966ef34d8a99ff78fc3bcaf2835a8b9802f5d66f"
+content-hash = "f65b88d62635049462f6063a43b68c304120d9546fb299401c61f2bf13a8513d"
 python-versions = "^3.7"
 
 [metadata.files]
@@ -1358,6 +1369,10 @@ nbconvert = [
 nbformat = [
     {file = "nbformat-5.0.4-py3-none-any.whl", hash = "sha256:f4bbbd8089bd346488f00af4ce2efb7f8310a74b2058040d075895429924678c"},
     {file = "nbformat-5.0.4.tar.gz", hash = "sha256:562de41fc7f4f481b79ab5d683279bf3a168858268d4387b489b7b02be0b324a"},
+]
+nbstripout = [
+    {file = "nbstripout-0.3.7-py2.py3-none-any.whl", hash = "sha256:cf745ae8c49fccdb3068b73fc3b783898d5d62ee929429e9af37a6dfefba34b7"},
+    {file = "nbstripout-0.3.7.tar.gz", hash = "sha256:62f1b1fe9c7c298061089fd9bd5d297eb6209f7fbef0758631dbe58d38fc828f"},
 ]
 networkx = [
     {file = "networkx-2.4-py3-none-any.whl", hash = "sha256:cdfbf698749a5014bf2ed9db4a07a5295df1d3a53bf80bf3cbd61edf9df05fa1"},

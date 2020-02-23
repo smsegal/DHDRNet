@@ -23,6 +23,7 @@ pylama = "^7.7.1"
 ipykernel = "^5.1.4"
 jupyter = "^1.0.0"
 isort = "^4.3.21"
+nbstripout = "^0.3.7"
 
 [build-system]
 requires = ["poetry>=0.12"]
