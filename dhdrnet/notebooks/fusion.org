@@ -1,18 +1,118 @@
-* Lets see if we can do a jupyter notebook inside org-mode
+#+STARTUP: inlineimages
+* Setup
+:PROPERTIES:
+:header-args:python: :session /jpy:localhost#8888:4e39b9c4-d0ba-46d0-94ee-7457ee93d781 :kernel dhdrnet
+:header-args:python: :tangle yes
+:END:
+sets up the session and basic imports
+#+BEGIN_SRC python 
+  import os
+  import sys
+  module_path = os.path.abspath(os.path.join('../..'))
 
-#+BEGIN_SRC jupyter-python :session py :kernel dhdrnet
-import cv2 as cv
-print(cv.__version__)
+  if module_path not in sys.path:
+      sys.path.append(module_path)
+
+  import cv2 as cv
+  print(cv.__version__)
+  from pathlib import Path
+  import numpy as np
+  import matplotlib.pyplot as plt
+  %load_ext autoreload
+  %autoreload 2
+  %matplotlib inline
+
+  DATA_DIR = Path("../../data/HDR+")
+#+END_SRC
+
+#+RESULTS:
+** Loading images works
+   We ca 
+#+BEGIN_SRC python
+  from dhdrnet import image_loader as il
+  import colour as co
+  num_imgs = 5
+
+  loaded_images, image_paths = il.read_images(DATA_DIR / "dngs", limit=num_imgs)
+
+  # show the images
+  for name, loaded_image in loaded_images.items():
+      fig,ax = co.plotting.plot_image(loaded_image.data)
+      plt.show()
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC python
+import imageio
+imageio.help("tiff")
+#+END_SRC
+
+#+RESULTS:
+
+Adjust the exposures over [-4,4] and write them to disk
+#+BEGIN_SRC python
+  il.write_multi_exposure(image_paths)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
 # [goto error]
-:
-: ModuleNotFoundErrorTraceback (most recent call last)
-: <ipython-input-7-67731c7e2e89> in <module>
-: ----> 1 import cv2 as cv
-:       2 print(cv.__version__)
-:
-: ModuleNotFoundError: No module named 'cv2'
+: ---------------------------------------------------------------------------
+: NameError                                 Traceback (most recent call last)
+: <ipython-input-74-6de865bfa8c7> in <module>
+: ----> 1 il.write_multi_exposure(image_paths)
+: 
+: NameError: name 'image_paths' is not defined
+:END:
+
+
+#+BEGIN_SRC python
+  import rawpy
+  mexp_path_dict = il.group_ldr_paths(DATA_DIR / "processed")
+  merged= []
+  for name, exps in mexp_path_dict.items():
+      exp_paths = [e[2] for e in exps]
+      print("name", name, exp_paths)
+      merged.append((name, il.mertens_fuse(exp_paths)))
+
+  fig, (ax1,ax2) = plt.subplots(ncols=2,sharex=True)
+  for name, img in merged:
+      ax1.set(title=name)
+      ax1.imshow(img)
+      dng = rawpy.imread(str(DATA_DIR/"dngs"/f"{name}.dng"))
+      ax2.imshow(dng)
+      plt.show()
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+: name 0155_20160903_183456_402 [PosixPath('../../data/HDR+/processed/0155_20160903_183456_402.-4.png'), PosixPath('../../data/HDR+/processed/0155_20160903_183456_402.-2.png'), PosixPath('../../data/HDR+/processed/0155_20160903_183456_402.0.png'), PosixPath('../../data/HDR+/processed/0155_20160903_183456_402.2.png'), PosixPath('../../data/HDR+/processed/0155_20160903_183456_402.4.png')]
+: name 1125_20151223_141123_686 [PosixPath('../../data/HDR+/processed/1125_20151223_141123_686.-4.png'), PosixPath('../../data/HDR+/processed/1125_20151223_141123_686.-2.png'), PosixPath('../../data/HDR+/processed/1125_20151223_141123_686.0.png'), PosixPath('../../data/HDR+/processed/1125_20151223_141123_686.2.png'), PosixPath('../../data/HDR+/processed/1125_20151223_141123_686.4.png')]
+: name 47L8_20150630_161003_245 [PosixPath('../../data/HDR+/processed/47L8_20150630_161003_245.-4.png'), PosixPath('../../data/HDR+/processed/47L8_20150630_161003_245.-2.png'), PosixPath('../../data/HDR+/processed/47L8_20150630_161003_245.0.png'), PosixPath('../../data/HDR+/processed/47L8_20150630_161003_245.2.png'), PosixPath('../../data/HDR+/processed/47L8_20150630_161003_245.4.png')]
+: name 4WBR_20150524_120506_513 [PosixPath('../../data/HDR+/processed/4WBR_20150524_120506_513.-4.png'), PosixPath('../../data/HDR+/processed/4WBR_20150524_120506_513.-2.png'), PosixPath('../../data/HDR+/processed/4WBR_20150524_120506_513.0.png'), PosixPath('../../data/HDR+/processed/4WBR_20150524_120506_513.2.png'), PosixPath('../../data/HDR+/processed/4WBR_20150524_120506_513.4.png')]
+: name 6FHF_20150307_153729_697 [PosixPath('../../data/HDR+/processed/6FHF_20150307_153729_697.-4.png'), PosixPath('../../data/HDR+/processed/6FHF_20150307_153729_697.-2.png'), PosixPath('../../data/HDR+/processed/6FHF_20150307_153729_697.0.png'), PosixPath('../../data/HDR+/processed/6FHF_20150307_153729_697.2.png'), PosixPath('../../data/HDR+/processed/6FHF_20150307_153729_697.4.png')]
+# [goto error]
+#+BEGIN_EXAMPLE
+---------------------------------------------------------------------------
+TypeError                                 Traceback (most recent call last)
+<ipython-input-70-62fb700dc0ac> in <module>
+     11     ax1.set(title=name)
+     12     ax1.imshow(img)
+---> 13     dng = rawpy.imread(DATA_DIR/"dngs"/f"{name}.dng")
+     14     ax2.imshow(dng)
+     15     plt.show()
+
+~/.cache/pypoetry/virtualenvs/dhdrnet-md5k9ngR-py3.7/lib/python3.7/site-packages/rawpy/__init__.py in imread(pathOrFile)
+     18         d.open_buffer(pathOrFile)
+     19     else:
+---> 20         d.open_file(pathOrFile)
+     21     return d
+
+rawpy/_rawpy.pyx in rawpy._rawpy.RawPy.open_file()
+
+TypeError: expected bytes, PosixPath found
+#+END_EXAMPLE
+[[file:./.ob-jupyter/fe9686db0261400fc0e7eeae33424b9d969abd4d.png]]
 :END:
