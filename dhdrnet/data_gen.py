@@ -1,48 +1,80 @@
-import itertools
+#!/usr/bin/env python
+
+import argparse
+from functools import partial
+from itertools import chain
 from pathlib import Path
 from typing import Callable, Collection
 
-import image_loader as il
-from image_loader import DATA_DIR, FuseMethod
+import dhdrnet.image_loader as il
+from dhdrnet.image_loader import FuseMethod
+from dhdrnet.util import get_project_root
+
+IS_SCRIPT = False
+DATA_DIR = get_project_root() / "data"
 
 
-def main():
-    gen(DATA_DIR/"dngs".iterdir(), DATA_DIR/"merged",FuseMethod.Debevec, is_script=True)
-    pass
+def main(in_dir: Path, out_dir: Path, fuse_method: FuseMethod):
+    fuse_fun = partial(il.cv_fuse, method=fuse_method, out_dir=out_dir)
+    out_dir.mkdir(exist_ok=True)
+    print(
+        gen(
+            image_paths=in_dir.iterdir(),
+            processed_dir=out_dir.parent / "processed",
+            fuse_fun=fuse_fun,
+        )
+    )
 
 
 def gen(
     image_paths: Collection[Path],
-    out_dir: Path,
-    fuse_fun: Callable[[Collection[Path], FuseMethod], Collection[Path]],
-    is_script: bool = False
+    processed_dir: Path,
+    fuse_fun: Callable[[Collection[Path]], Collection[Path]],
 ) -> Collection[Path]:
     image_paths = list(image_paths)
-    processed_dir = DATA_DIR / "processed"
 
-    if not processed_dir.exists() or len(list(processed_dir.iterdir()))==0:
-        processed_dir.mkdir(exists_ok=True)
-        multi_exposure_paths = il.write_multi_exposure(image_paths)
-    else:
-        multi_exposure_paths = processed_dir.iterdir()
+    print(f"Generating multi exposure files in {processed_dir} (Skipping existing)")
+    processed_dir.mkdir(exist_ok=True)
+    multi_exposure_paths = list(processed_dir.iterdir())
+    if len(multi_exposure_paths) == 0:
+        multi_exposure_paths = il.parallel_write_multi_exp(image_paths, processed_dir)
 
-    if not out_dir.exists() or len(list(out_dir.iterdir()))== 0:
-        if is_script:
-            should_overwrite = input("merged out_dir is not empty, overwrite conflicting files?")
-        else:
-            should_overwrite = True
-            
-
-    grouped_ldr_paths: Mapping[str, Collection[Path]] = il.group_ldr_paths(
-        multi_exposure_paths
-    )
-    
-    for (name, exp_paths), method in itertools.product(
-        multi_exposure_paths.items(), FuseMethod
-    ):
-        pass
-        
+    grouped_ldr_paths = list(il.multi_exp_paths(image_paths, processed_dir))
+    print("Generating merged files")
+    return list(il.parallel_cv_fused(fuse_fun, grouped_ldr_paths))
 
 
 if __name__ == "__main__":
-    main()
+    IS_SCRIPT = True
+    parser = argparse.ArgumentParser(
+        description="generates synthetic HDR image composed of LDR images of the same scene"
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        help="Fusion method to use",
+        choices=["debevec", "mertens", "robertson", "all"],
+    )
+    parser.add_argument("-o", "--out-dir", default=str(DATA_DIR / "merged"))
+    parser.add_argument("--input-dir", default=str(DATA_DIR / "dngs"))
+    parser.add_argument("-n", "--dry-run", action="store_true")
+
+    args = parser.parse_args()
+    fuse_method = FuseMethod[str(args.method).capitalize()]
+    out_dir = (Path(".") / args.out_dir).resolve()
+    processed_dir = out_dir.parent / "processed"
+    in_dir = Path(args.input_dir).resolve()
+    dry_run = args.dry_run
+
+    print(
+        f"""
+Using the following settings:
+ Merged Image Output Directory:     {out_dir}
+ Exposure Adjusted Image Directory: {processed_dir}
+ Merge Method:                      {str(fuse_method)}
+ Dry Run? {"Yes" if dry_run else "No"}
+        """
+    )
+
+    if not dry_run:
+        main(in_dir, out_dir, fuse_method)

@@ -3,9 +3,10 @@ import os
 import shlex
 import subprocess
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from enum import Enum
-from functools import singledispatch
-from itertools import groupby
+from functools import partial, singledispatch
+from itertools import chain, groupby, product, zip_longest
 from operator import itemgetter
 from pathlib import Path
 from typing import Callable, Collection, Mapping
@@ -25,9 +26,9 @@ from colour_hdri import (
     weighting_function_Debevec1997,
 )
 
-DATA_DIR = Path("../../data/HDR+").absolute()
+DATA_DIR = Path("../data").resolve()
 
-FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens")
+FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
 
 def main():
@@ -83,6 +84,26 @@ def _(path: Path) -> Mapping[str, Collection[Path]]:
     return group_ldr_paths(image_paths)
 
 
+def multi_exp_paths(
+    raw_paths: Collection[Path], processed_path: Path
+) -> Collection[Path]:
+    for path in raw_paths:
+        name = path.name.split(".")[0]
+        exp_paths = list(processed_path.glob(f"{name}*"))
+        if len(exp_paths):
+            yield sorted(exp_paths, key=lambda p: int(p.name.split(".")[1]))
+
+
+def multi_exp_paths2(
+    raw_paths: Collection[Path], processed_dir: Path
+) -> Collection[Path]:
+    for path in raw_paths:
+        yield [
+            processed_dir / f"{basename}.{int(exp)}.png"
+            for (basename, exp) in product([path.stem], np.linspace(-4, 4, 5))
+        ]
+
+
 def read_images(path: Path, limit: int = None) -> Mapping[str, np.ndarray]:
     file_paths = list(path.glob("*.dng"))
     if limit:
@@ -118,52 +139,90 @@ def norm_uint8(img: np.ndarray) -> np.ndarray:
     )
 
 
-def write_multi_exposure(image_list: Collection[Path]):
+def write_multi_exposure(image_list: Collection[Path], out_path: Path):
     for img_path in image_list:
         img = ch.Image(str(img_path))
         img.read_metadata()
         img.read_data()
         for exposure in np.linspace(-4, 4, 5):
             img_name = f"{img_path.name[:-4]}.{int(exposure)}.png"
-            out = (DATA_DIR / "processed") / img_name
-            co.write_image(
-                norm_uint8(ch.adjust_exposure(img.data, exposure)), str(out),
-            )
+            out = out_path / img_name
+            if not out.exists():
+                co.write_image(ch.adjust_exposure(img.data, exposure), str(out))
             yield out
 
 
-def cv_fuse(images: Collection[Path], method: FuseMethod) -> Collection[Path]:
-    return {
+def write_exp_image(image_path: Path, out_path: Path) -> Path:
+    exposures = []
+    print(image_path)
+    img = ch.Image(str(image_path))
+    img.read_metadata()
+    img.read_data()
+    for exposure in np.linspace(-4, 4, 5):
+        img_name = f"{image_path.name[:-4]}.{int(exposure)}.png"
+        out = out_path / img_name
+        if not out.exists():
+            co.write_image(
+                ch.adjust_exposure(img.data, exposure), str(out),
+            )
+        exposures.append(out)
+    return exposures
+
+
+def parallel_write_multi_exp(
+    image_list: Collection[Path], out_path: Path
+) -> Collection[Path]:
+    img_writer = partial(write_exp_image, out_path=out_path)
+    with ProcessPoolExecutor(max_workers=25) as executor:
+        return chain(*executor.map(img_writer, image_list))
+
+
+def parallel_cv_fused(fuse_fun: Callable, grouped_paths: Mapping):
+    with ProcessPoolExecutor(max_workers=25) as executor:
+        return list(executor.map(fuse_fun, grouped_paths))
+
+
+def cv_fuse(
+    images: Collection[Path], method: FuseMethod, out_dir: Path
+) -> Collection[Path]:
+    method_map = {
         FuseMethod.Debevec: debevec_fuse,
         FuseMethod.Mertens: mertens_fuse,
         FuseMethod.Robertson: robertson_fuse,
-    }[method](images)
+    }
+    if method == FuseMethod.All:
+        return [
+            method_map[fm](images, out_dir) for fm in FuseMethod if fm != FuseMethod.All
+        ]
+    else:
+        return method_map[method](images, out_dir)
 
 
-def mertens_fuse(images: Collection[Path]) -> Collection[Path]:
+def mertens_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
     mertens_merger = cv.createMergeMertens()
     loaded_images = [cv.imread(str(img_path)) for img_path in images]
 
     res_name = f"{images[0].name.split('.')[0]}.mertens.png"
-    out = DATA_DIR / "merged" / res_name
+    out = out_dir / res_name
     cv.imwrite(str(out), clip_hdr(mertens_merger.process(loaded_images)))
     return out
 
 
-def debevec_fuse(images: Collection[Path]) -> Collection[Path]:
+def debevec_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
     debevec_merger = cv.createMergeDebevec()
-    return _cv_fuse(images, debevec_merger.process, "debevec")
+    return _cv_fuse(images, debevec_merger.process, "debevec", out_dir)
 
 
-def robertson_fuse(images: Collection[Path]) -> Collection[Path]:
+def robertson_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
     robertson_merger = cv.createMergeRobertson()
-    return _cv_fuse(images, robertson_merger.process, "robertson")
+    return _cv_fuse(images, robertson_merger.process, "robertson", out_dir)
 
 
 def _cv_fuse(
     images: Collection[Path],
     fuse_func: Callable[[Collection[Path]], Collection[Path]],
     method: str,
+    out_dir: Path,
 ):
     loaded_images = [cv.imread(str(img_path)) for img_path in images]
     exposure_levels = [int(image.name.split(".")[1]) for image in images]
@@ -175,7 +234,7 @@ def _cv_fuse(
     result = tonemap.process(hdr.copy())
 
     res_name = f"{images[0].name.split('.')[0]}.{method}.png"
-    out = DATA_DIR / "merged" / res_name
+    out = out_dir / res_name
     cv.imwrite(str(out), clip_hdr(result))
     return out
 
