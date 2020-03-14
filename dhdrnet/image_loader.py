@@ -1,12 +1,11 @@
 import logging
-import os
 import shlex
 import subprocess
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from enum import Enum
 from functools import partial, singledispatch
-from itertools import chain, groupby, product, zip_longest
+from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
 from typing import Callable, Collection, Mapping
@@ -14,9 +13,7 @@ from typing import Callable, Collection, Mapping
 import colour as co
 import colour_hdri as ch
 import cv2 as cv
-import imageio as io
 import numpy as np
-import rawpy
 from colour_hdri import (
     Image,
     ImageStack,
@@ -25,6 +22,7 @@ from colour_hdri import (
     image_stack_to_radiance_image,
     weighting_function_Debevec1997,
 )
+from deprecated import deprecated
 
 DATA_DIR = Path("../data").resolve()
 
@@ -84,24 +82,26 @@ def _(path: Path) -> Mapping[str, Collection[Path]]:
     return group_ldr_paths(image_paths)
 
 
+@deprecated(reason="use get_exposures instead, works with dataset folder structure")
 def multi_exp_paths(
     raw_paths: Collection[Path], processed_path: Path
 ) -> Collection[Path]:
     for path in raw_paths:
-        name = path.name.split(".")[0]
-        exp_paths = list(processed_path.glob(f"{name}*"))
-        if len(exp_paths):
-            yield sorted(exp_paths, key=lambda p: int(p.name.split(".")[1]))
+        yield multi_exp_path(path, processed_path)
 
 
-def multi_exp_paths2(
-    raw_paths: Collection[Path], processed_dir: Path
-) -> Collection[Path]:
-    for path in raw_paths:
-        yield [
-            processed_dir / f"{basename}.{int(exp)}.png"
-            for (basename, exp) in product([path.stem], np.linspace(-4, 4, 5))
-        ]
+@deprecated
+def multi_exp_path(raw_path, processed_path):
+    name = raw_path.name.split(".")[0]
+    exp_paths = list(processed_path.glob(f"{name}*"))
+    if len(exp_paths):
+        return sorted(exp_paths, key=lambda p: int(p.name.split(".")[1]))
+
+
+def get_exposures(exp_path: Path, img_path: Path):
+    file_name_no_ext = img_path.stem
+    exp_paths = exp_path.glob(f"{file_name_no_ext}*")
+    return sorted(exp_paths, key=lambda p: int(p.name.split(".")[1]))
 
 
 def read_images(path: Path, limit: int = None) -> Mapping[str, np.ndarray]:
