@@ -117,6 +117,11 @@ def read_images(path: Path, limit: int = None) -> Mapping[str, np.ndarray]:
     return images, sample
 
 
+def read_hdr(path: Path) -> np.ndarray:
+    image = ch.Image(str(path))
+    return image.read_data()
+
+
 def gen_multi_exposure(
     image_dict: Mapping[str, np.ndarray]
 ) -> Mapping[str, Collection[np.ndarray]]:

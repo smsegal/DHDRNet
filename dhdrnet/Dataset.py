@@ -1,21 +1,29 @@
 from pathlib import Path
+from typing import Collection
 
+import colour_hdri as ch
+import numpy as np
 import torch
 from skimage import io
 from torch.utils.data import Dataset
 
-import dhdrnet.image_loader as il
+from dhdrnet.image_loader import read_hdr
 
 
 class HDRDataset(Dataset):
     """HDR image dataset"""
 
-    def __init__(self, root_dir: Path, exp_dir: Path):
+    def __init__(
+        self,
+        root_dir: Path,
+        raw_dir: Path,
+        exposure_levels: Collection = np.linspace(-4, 4, 5),
+    ):
         self.root_dir = root_dir
-        self.exp_dir = exp_dir
+        self.raw_dir = raw_dir
 
         self.gt_paths = list(self.root_dir.iterdir())
-        self.exp_paths = list(self.exp_dir.iterdir())
+        self.exposure_levels = exposure_levels
 
     def __len__(self):
         return len(self.gt_paths)
@@ -27,11 +35,14 @@ class HDRDataset(Dataset):
             idx = idx.to_list()
 
         gt_path = self.gt_paths[idx]
+        raw_image = read_hdr(self.raw_dir / f"{gt_path.stem}.dng")
+        gt_image = io.imread(gt_path)
         exposures = [
-            io.imread(str(ip)) for ip in il.get_exposures(self.exp_dir, gt_path)
+            ch.adjust_exposure(raw_image, exp_level)
+            for exp_level in self.exposure_levels
         ]
         return {
             "exposures": exposures,
-            "ground_truth": io.imread(str(gt_path)),
+            "ground_truth": gt_image,
             "name": gt_path.stem,
         }

@@ -317,7 +317,7 @@ pip-selfcheck.json
 
 ### direnv ###
 .direnv
-.envrc
+# .envrc
 
 # End of https://www.gitignore.io/api/direnv
 data/*
