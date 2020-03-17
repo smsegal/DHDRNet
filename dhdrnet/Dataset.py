@@ -15,14 +15,14 @@ class HDRDataset(Dataset):
 
     def __init__(
         self,
-        root_dir: Path,
+        gt_dir: Path,
         raw_dir: Path,
         exposure_levels: Collection = np.linspace(-4, 4, 5),
     ):
-        self.root_dir = root_dir
+        self.gt_dir = gt_dir
         self.raw_dir = raw_dir
 
-        self.gt_paths = list(self.root_dir.iterdir())
+        self.gt_paths = list(self.gt_dir.iterdir())
         self.exposure_levels = exposure_levels
 
     def __len__(self):

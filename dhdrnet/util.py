@@ -1,11 +1,8 @@
+import random
 from pathlib import Path
-from typing import Collection, Tuple
 from subprocess import check_output
-
-import matplotlib.pyplot as plt
+import torch
 import numpy as np
-from mpl_toolkits.axes_grid1 import ImageGrid
-from more_itertools import interleave
 
 
 def get_project_root() -> Path:
@@ -15,28 +12,19 @@ def get_project_root() -> Path:
     return Path(git_root).absolute()
 
 
-def show_image_pair(im1: np.ndarray, im2: np.ndarray):
-    fig = plt.figure(figsize=(12, 12))
-    grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
-
-    for ax, im in zip(grid, [im1, im2]):
-        ax.imshow(im)
-
-def show_exp_group(*images):
-    images = list(images)
-    num_im = len(images)
-    fig = plt.figure(figsize=(12*num_im, 12))
-    grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
+DATA_DIR = get_project_root() / "data"
 
 
-def show_image_groups(*image_groups):
-    image_groups = list(image_groups)
-    group1 = image_groups[0]
-    interleaved = interleave(*image_groups)
-    fig = plt.figure(figsize=(30, 30))
-    grid = ImageGrid(
-        fig, 111, nrows_ncols=(len(group1), len(image_groups)), axes_pad=0.1
-    )
+def get_train_test(data_dir: Path) -> torch.utils.data.Dataset:
+    pass
 
-    for ax, im in zip(grid, interleaved):
-        ax.imshow(im)
+
+def create_train_test_split(data_dir: Path, train_split=0.9, val_split=0.2):
+    files = set((data_dir / "dngs").iterdir())
+    train = random.sample(files, k=train_split * len(files))
+    test = files - train
+    val = random.sample(train, k=val_split * len(train))
+    for name, split in {"train": train, "test": test, "val": val}.items():
+        with open(f"{name}.txt", "w") as f:
+            for fp in split:
+                print(str(fp), file=f)

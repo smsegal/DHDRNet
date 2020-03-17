@@ -14,7 +14,7 @@ DATA_DIR = get_project_root() / "data"
 
 def test_sample_load():
     dataset = HDRDataset(
-        root_dir=DATA_DIR / "merged" / "mertens", exp_dir=DATA_DIR / "processed"
+        gt_dir=DATA_DIR / "merged" / "mertens", raw_dir=DATA_DIR / "dngs"
     )
     sample_size = 100
     for i in np.random.choice(len(dataset), size=sample_size):
