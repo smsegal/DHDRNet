@@ -38,6 +38,6 @@ def create_train_test_split(data_dir: Path, train_split=0.9, val_split=0.2):
     assert len(files) == len(train) + len(test) + len(val)
 
     for name, split in {"train": train, "test": test, "val": val}.items():
-        with open(f"{name}.txt", "w") as f:
+        with open(data_dir / f"{name}.txt", "w") as f:
             for fp in split:
-                print(fp.name, file=f)
+                print(fp.stem, file=f)
