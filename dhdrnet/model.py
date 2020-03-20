@@ -16,8 +16,7 @@ from dhdrnet.Dataset import HDRDataset
 from dhdrnet.util import get_project_root
 
 data_dir = get_project_root() / "data"
-dataset = HDRDataset(gt_dir=data_dir / "merged" / "mertens", raw_dir=data_dir / "dngs")
 # dataloader =
 
-def define_model(num_classes: int, pretrained=True):
+def define_model(pretrained=True):
     resnext = models.resnext50_32x4d(pretrained=pretrained)
