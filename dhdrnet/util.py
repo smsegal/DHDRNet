@@ -3,16 +3,9 @@ from collections import defaultdict
 from collections.abc import Iterable as It
 from pathlib import Path
 
-# End file hierarchy should look like:
-# DATA_DIR /
-# {train, test, val} /
-# {dngs, merged, processed}
 from pprint import pprint
 from subprocess import check_output
-from typing import Set
-
-import numpy as np
-import torch
+from typing import DefaultDict, Dict, Iterator, List, Set
 
 
 def get_project_root() -> Path:
@@ -26,36 +19,36 @@ ROOT_DIR: Path = get_project_root()
 DATA_DIR: Path = ROOT_DIR / "data"
 
 
-def get_train_test(data_dir: Path) -> torch.utils.data.Dataset:
+def get_train_test(data_dir: Path):
     pass
 
 
-def create_train_test_split(data_dir: Path, train_split=0.9, val_split=0.2):
+def create_train_test_split(
+    data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
+):
     files: Set = set((data_dir / "dngs").iterdir())
 
-    train_size = int(train_split * len(files))
+    train_size = round(train_split * len(files))
     train: Set = set(random.sample(files, k=train_size))
+
     test = files - train
 
-    val_size = int(val_split * len(train))
+    val_size = round(val_split * len(train))
     val = set(random.sample(train, k=val_size))
+
     train = train - val
 
-    print(len(files))
-    print(len(train))
-    print(len(test))
-    print(len(val))
-    assert len(files) == len(train) + len(test) + len(val)
+    if not dry_run:
+        for name, split in {"train": train, "test": test, "val": val}.items():
+            split_file = ROOT_DIR / f"{name}.txt"
+            split_file.write_text("\n".join([fname.stem for fname in split]))
 
-    for name, split in {"train": train, "test": test, "val": val}.items():
-        with open(get_project_root() / f"{name}.txt", "w") as f:
-            for fp in split:
-                print(fp.stem, file=f)
+    return files, train, test, val
 
 
 def split_dataset(
     root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
-):
+) -> Dict[Path, List[Path]]:
     ds_splits = ["train", "test", "val"]
     data_subdirs = ["dngs", "merged", "processed"]
     source_dest_map = defaultdict(list)
@@ -68,7 +61,7 @@ def split_dataset(
 
     # getting each file that contains listings
     # and reading into dict keyed by train,test,val
-    ds_files = {split: [] for split in ds_splits}
+    ds_files: Dict = {split: [] for split in ds_splits}
     for f, split in [(root_dir / f"{f}.txt", f) for f in ds_splits]:
         if f.is_file():
             ds_files[split] = set(f.read_text().splitlines())
@@ -91,6 +84,39 @@ def split_dataset(
                     (dest / orig.name).symlink_to(orig)
                 except FileExistsError as fee:
                     print(fee)
+
+    return source_dest_map
+
+
+def split_data(data_dir: Path, root_dir: Path) -> DefaultDict[Path, List[Path]]:
+    """
+    End file hierarchy should look like:
+    DATA_DIR /
+    {train, test, val} /
+    {dngs, merged, processed}
+    """
+    splits = ["train", "test", "val"]
+    data_splits = [
+        set(f.read_text().splitlines())
+        for f in [root_dir / f"{split}.txt" for split in splits]
+    ]
+    train, test, val = data_splits
+
+    source_dest_map: DefaultDict[Path, List[Path]] = defaultdict(list)
+    for source_dir in [data_dir / st for st in ["dngs", "merged", "processed"]]:
+        for split_list, split_name in zip(data_splits, splits):
+            target_dir = data_dir / split_name / source_dir.name
+            target_dir.mkdir(parents=True, exist_ok=True)
+            source_dest_map[source_dir].append(target_dir)
+            for name in split_list:
+                source_files: Iterator[Path] = source_dir.glob(f"{name}.*")
+                for source_file in source_files:
+                    target = target_dir / source_file.name
+                    # try:
+                    target.symlink_to(source_file)
+                    # except FileExistsError as fee:
+                    #     continue
+    return source_dest_map
 
 
 def flatten(items, ignore_types=(str, bytes)):

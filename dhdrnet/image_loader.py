@@ -8,20 +8,17 @@ from functools import partial, singledispatch
 from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
-from typing import Callable, Collection, Mapping
+from typing import (Callable, Collection, DefaultDict, Generator, Iterator,
+                    Mapping)
 
 import colour as co
 import colour_hdri as ch
 import cv2 as cv
 import numpy as np
-from colour_hdri import (
-    Image,
-    ImageStack,
-    camera_response_functions_Debevec1997,
-    filter_files,
-    image_stack_to_radiance_image,
-    weighting_function_Debevec1997,
-)
+from colour_hdri import (Image, ImageStack,
+                         camera_response_functions_Debevec1997, filter_files,
+                         image_stack_to_radiance_image,
+                         weighting_function_Debevec1997)
 from deprecated import deprecated
 
 DATA_DIR = Path("../data").resolve()
@@ -46,7 +43,7 @@ def camera_response(image_stack: ImageStack):
     return crfs
 
 
-def ldr_files_to_imagestack(ldr_files: Collection[Path]) -> ImageStack:
+def ldr_files_to_imagestack(ldr_files: Iterator[Path]) -> ImageStack:
     ldr_files = map(str, ldr_files)
     image_stack = ImageStack()
     for f in ldr_files:
@@ -56,9 +53,8 @@ def ldr_files_to_imagestack(ldr_files: Collection[Path]) -> ImageStack:
         image_stack.append(image)
     return image_stack
 
-
 @singledispatch
-def group_ldr_paths(image_paths: Collection[Path]) -> Mapping[str, Collection[Path]]:
+def group_ldr_paths(image_paths: Collection[Path]) -> DefaultDict[str, Collection[Path]]:
     """
 takes the path of the dir of all processed LDR pngs, returns them
 grouped by name and the paths to each different exposure
@@ -85,7 +81,7 @@ def _(path: Path) -> Mapping[str, Collection[Path]]:
 @deprecated(reason="use get_exposures instead, works with dataset folder structure")
 def multi_exp_paths(
     raw_paths: Collection[Path], processed_path: Path
-) -> Collection[Path]:
+) -> Iterator[Collection[Path]]:
     for path in raw_paths:
         yield multi_exp_path(path, processed_path)
 
