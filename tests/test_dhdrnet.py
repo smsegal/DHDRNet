@@ -10,6 +10,7 @@ from dhdrnet.util import (
     split_data,
     split_dataset,
 )
+import torch
 
 
 def test_version():
@@ -43,3 +44,16 @@ def test_split_dataset():
         source_files = source.iterdir()
         dest_files = flatten([d.iterdir() for d in dests])
         assert len(list((source_files))) == len(list(dest_files))
+
+
+def test_load_split_data():
+    datasets = {
+        split: HDRDataset(DATA_DIR / split / "merged", DATA_DIR / split / "dngs")
+        for split in ["train", "val"]
+    }
+    # dataloaders = {
+    #     split: torch.utils.data.DataLoader(
+    #         datasets[split], batch_size=4, shuffle=True, num_workers=4
+    #     )
+    #     for split in ["train", "val"]
+    # }
