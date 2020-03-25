@@ -8,29 +8,73 @@ from functools import partial, singledispatch
 from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
-from typing import (Callable, Collection, DefaultDict, Generator, Iterator,
-                    Mapping)
+from typing import Callable, Collection, DefaultDict, Generator, Iterator, List, Mapping
 
 import colour as co
 import colour_hdri as ch
 import cv2 as cv
 import numpy as np
-from colour_hdri import (Image, ImageStack,
-                         camera_response_functions_Debevec1997, filter_files,
-                         image_stack_to_radiance_image,
-                         weighting_function_Debevec1997)
+from colour_hdri import (
+    Image,
+    ImageStack,
+    camera_response_functions_Debevec1997,
+    filter_files,
+    image_stack_to_radiance_image,
+    weighting_function_Debevec1997,
+)
 from deprecated import deprecated
+
+from dhdrnet.util import Indexable
 
 DATA_DIR = Path("../data").resolve()
 
 FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
 
-def main():
-    pass
+class CVFuse:
+    def __init__(self, method: FuseMethod):
+        method_map = {
+            FuseMethod.Debevec: self.debevec_fuse,
+            FuseMethod.Mertens: self.mertens_fuse,
+            FuseMethod.Robertson: self.robertson_fuse,
+        }
+        self.fuse_fun = method_map[method]
+
+    def __call__(self, images):
+        return self.fuse_fun(images)
+
+    def mertens_fuse(self, images: Indexable[Path]) -> Path:
+        mertens_merger = cv.createMergeMertens()
+        loaded_images = [cv.imread(str(img_path)) for img_path in images]
+        return clip_hdr(mertens_merger.process(loaded_images))
+
+    def debevec_fuse(self, images: Collection[Path]) -> Path:
+        debevec_merger = cv.createMergeDebevec()
+        return self._cv_fuse(images, debevec_merger.process, "debevec", out_dir)
+
+    def robertson_fuse(self, images: Collection[Path]) -> Path:
+        robertson_merger = cv.createMergeRobertson()
+        return self._cv_fuse(images, robertson_merger.process, "robertson", out_dir)
+
+    def _cv_fuse(
+        self,
+        images: Collection[Path],
+        fuse_func: Callable[[Collection[Path]], Collection[Path]],
+        method: str,
+    ) -> Path:
+        loaded_images = [cv.imread(str(img_path)) for img_path in images]
+        exposure_levels = [int(image.name.split(".")[1]) for image in images]
+        exp_min = np.min(exposure_levels)
+        exp_max = np.max(exposure_levels)
+        exp_normed_shift = (exposure_levels - exp_min + 1) / (exp_max - exp_min)
+        tonemap = cv.createTonemap(gamma=2.2)
+        hdr = fuse_func(loaded_images, times=exp_normed_shift.copy())
+        result = tonemap.process(hdr.copy())
+
+        return clip_hdr(result)
 
 
-def ldr_image_fusion(ldr_files: Collection[Path]):
+def ldr_image_fusion(ldr_files: Iterator[Path]):
     image_stack = ldr_files_to_imagestack(ldr_files)
     merged = image_stack_to_radiance_image(image_stack)
     return merged
@@ -44,7 +88,6 @@ def camera_response(image_stack: ImageStack):
 
 
 def ldr_files_to_imagestack(ldr_files: Iterator[Path]) -> ImageStack:
-    ldr_files = map(str, ldr_files)
     image_stack = ImageStack()
     for f in ldr_files:
         image = Image(str(f))
@@ -53,8 +96,11 @@ def ldr_files_to_imagestack(ldr_files: Iterator[Path]) -> ImageStack:
         image_stack.append(image)
     return image_stack
 
+
 @singledispatch
-def group_ldr_paths(image_paths: Collection[Path]) -> DefaultDict[str, Collection[Path]]:
+def group_ldr_paths(
+    image_paths: Collection[Path],
+) -> DefaultDict[str, Collection[Path]]:
     """
 takes the path of the dir of all processed LDR pngs, returns them
 grouped by name and the paths to each different exposure
@@ -121,7 +167,7 @@ def read_hdr(path: Path) -> np.ndarray:
 def gen_multi_exposure(
     image_dict: Mapping[str, np.ndarray]
 ) -> Mapping[str, Collection[np.ndarray]]:
-    multi_exposure = dict.fromkeys(image_dict, [])
+    multi_exposure: Mapping[str, List] = dict.fromkeys(image_dict, [])
 
     for k, img in image_dict.items():
         # image_data = img.read_data()
@@ -153,7 +199,7 @@ def write_multi_exposure(image_list: Collection[Path], out_path: Path):
             yield out
 
 
-def write_exp_image(image_path: Path, out_path: Path) -> Path:
+def write_exp_image(image_path: Path, out_path: Path) -> List[Path]:
     exposures = []
     print(image_path)
     img = ch.Image(str(image_path))
@@ -172,13 +218,13 @@ def write_exp_image(image_path: Path, out_path: Path) -> Path:
 
 def parallel_write_multi_exp(
     image_list: Collection[Path], out_path: Path
-) -> Collection[Path]:
+) -> Iterator[Path]:
     img_writer = partial(write_exp_image, out_path=out_path)
     with ProcessPoolExecutor(max_workers=25) as executor:
         return chain(*executor.map(img_writer, image_list))
 
 
-def parallel_cv_fused(fuse_fun: Callable, grouped_paths: Mapping):
+def parallel_cv_fused(fuse_fun: Callable, grouped_paths: Mapping) -> List[Path]:
     with ProcessPoolExecutor(max_workers=25) as executor:
         return list(executor.map(fuse_fun, grouped_paths))
 
@@ -186,58 +232,14 @@ def parallel_cv_fused(fuse_fun: Callable, grouped_paths: Mapping):
 def cv_fuse(
     images: Collection[Path], method: FuseMethod, out_dir: Path
 ) -> Collection[Path]:
-    method_map = {
-        FuseMethod.Debevec: debevec_fuse,
-        FuseMethod.Mertens: mertens_fuse,
-        FuseMethod.Robertson: robertson_fuse,
-    }
     if method == FuseMethod.All:
         return [
-            method_map[fm](images, out_dir) for fm in FuseMethod if fm != FuseMethod.All
+            _method_map[fm](images, out_dir)
+            for fm in FuseMethod
+            if fm != FuseMethod.All
         ]
     else:
-        return method_map[method](images, out_dir)
-
-
-def mertens_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
-    mertens_merger = cv.createMergeMertens()
-    loaded_images = [cv.imread(str(img_path)) for img_path in images]
-
-    res_name = f"{images[0].name.split('.')[0]}.mertens.png"
-    out = out_dir / res_name
-    cv.imwrite(str(out), clip_hdr(mertens_merger.process(loaded_images)))
-    return out
-
-
-def debevec_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
-    debevec_merger = cv.createMergeDebevec()
-    return _cv_fuse(images, debevec_merger.process, "debevec", out_dir)
-
-
-def robertson_fuse(images: Collection[Path], out_dir: Path) -> Collection[Path]:
-    robertson_merger = cv.createMergeRobertson()
-    return _cv_fuse(images, robertson_merger.process, "robertson", out_dir)
-
-
-def _cv_fuse(
-    images: Collection[Path],
-    fuse_func: Callable[[Collection[Path]], Collection[Path]],
-    method: str,
-    out_dir: Path,
-):
-    loaded_images = [cv.imread(str(img_path)) for img_path in images]
-    exposure_levels = [int(image.name.split(".")[1]) for image in images]
-    exp_min = np.min(exposure_levels)
-    exp_max = np.max(exposure_levels)
-    exp_normed_shift = (exposure_levels - exp_min + 1) / (exp_max - exp_min)
-    tonemap = cv.createTonemap(gamma=2.2)
-    hdr = fuse_func(loaded_images, times=exp_normed_shift.copy())
-    result = tonemap.process(hdr.copy())
-
-    res_name = f"{images[0].name.split('.')[0]}.{method}.png"
-    out = out_dir / res_name
-    cv.imwrite(str(out), clip_hdr(result))
-    return out
+        return [_method_map[method](images, out_dir)]
 
 
 def merge_all_test(merge_exp_paths):

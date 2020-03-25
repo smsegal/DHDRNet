@@ -2,10 +2,28 @@ import random
 from collections import defaultdict
 from collections.abc import Iterable as It
 from pathlib import Path
-
 from pprint import pprint
 from subprocess import check_output
-from typing import DefaultDict, Dict, Iterator, List, Set
+from typing import (
+    Any,
+    DefaultDict,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Set,
+    NewType,
+    TypeVar,
+    Generic,
+    Collection,
+)
+
+T = TypeVar("T")
+
+
+class Indexable(Mapping[int, T]):
+    def __init__(self, *args, **kwargs):
+        super(self, *args, **kwargs)
 
 
 def get_project_root() -> Path:
