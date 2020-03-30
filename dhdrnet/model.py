@@ -32,7 +32,7 @@ data_transforms = {
     ),
     Phase.EVAL: transforms.Compose(
         [transforms.CenterCrop((360, 474))]  # min dimensions along DS
-    )
+    ),
 }
 datasets = {
     split: HDRDataset(
@@ -42,9 +42,13 @@ datasets = {
     )
     for split in Phase
 }
+batch_sizes = {
+    Phase.TRAIN: 4,
+    Phase.EVAL: 8,  # double the batch size for val cause jeremy howard said so
+}
 dataloaders = {
     split: torch.utils.data.DataLoader(
-        datasets[split], batch_size=4, shuffle=True, num_workers=4,
+        datasets[split], batch_size=batch_sizes[split], shuffle=True, num_workers=1,
     )
     for split in Phase
 }
@@ -73,8 +77,10 @@ class ReconstructionLoss(nn.Module):
         super(ReconstructionLoss, self).__init__()
         self.fuse_fun = fuse_fun
 
-    def forward(self, input, target):
-        pass
+    def forward(self, inputs, target):
+        reconstructed_hdr = self.fuse_fun(inputs)
+        l2 = nn.MSELoss()
+        return l2(target, reconstructed_hdr)
 
 
 def define_model(pretrained=True):
@@ -100,7 +106,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
                 model.eval()
 
             # iterate over data
-            running_loss, running_correct = data_opt(
+            running_loss, running_correct = fit(
                 dataloaders, model, phase, loss_fun, device, optimizer
             )
 
@@ -127,10 +133,10 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
     return model
 
 
-def data_opt(dataloaders, model, phase, loss_fun, device, optimizer):
+def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_loss = 0.0
     running_correct = 0
-    for inputs, labels, names in dataloaders[phase]:
+    for mid_image, exposure_levels in dataloaders[phase]:
         inputs = inputs.to(device)
         labels = labels.to(device)
 
