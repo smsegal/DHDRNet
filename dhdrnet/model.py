@@ -12,7 +12,7 @@ import torchvision as tv
 from skimage import io, transform
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
-from torchvision import models
+from torchvision import models, transforms
 
 from dhdrnet.Dataset import HDRDataset
 from dhdrnet.image_loader import CVFuse, FuseMethod
@@ -26,19 +26,25 @@ class Phase(Enum):
     EVAL = "val"
 
 
+data_transforms = {
+    Phase.TRAIN: transforms.Compose(
+        [transforms.CenterCrop((360, 474))]  # min dimensions along DS
+    ),
+    Phase.EVAL: transforms.Compose(
+        [transforms.CenterCrop((360, 474))]  # min dimensions along DS
+    )
+}
 datasets = {
     split: HDRDataset(
-        DATA_DIR / split.value / "merged", DATA_DIR / split.value / "dngs"
+        DATA_DIR / split.value / "merged",
+        DATA_DIR / split.value / "dngs",
+        transforms=data_transforms[split],
     )
     for split in Phase
 }
 dataloaders = {
     split: torch.utils.data.DataLoader(
-        datasets[split],
-        batch_size=4,
-        shuffle=True,
-        num_workers=4,
-        sampler=torch.utils.data.RandomSampler,
+        datasets[split], batch_size=4, shuffle=True, num_workers=4,
     )
     for split in Phase
 }
