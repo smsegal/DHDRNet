@@ -50,10 +50,7 @@ class HDRDataset(Dataset):
             gt_image = self.transforms(gt_image)
 
         exposures = [
-            ch.adjust_exposure(raw_image, exp_level)
+            np.array(ch.adjust_exposure(raw_image, exp_level))
             for exp_level in self.exposure_levels
         ]
-        return {
-            "exposures": exposures,
-            "ground_truth": gt_image,
-        }
+        return {"exposures": exposures, "ground_truth": np.array(gt_image)}

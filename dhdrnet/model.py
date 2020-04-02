@@ -78,15 +78,10 @@ class ReconstructionLoss(nn.Module):
         self.fuse_fun = fuse_fun
 
     def forward(self, inputs, target):
-        reconstructed_hdr = self.fuse_fun(inputs)
+        with torch.no_grad():
+            reconstructed_hdr = self.fuse_fun(inputs)
         l2 = nn.MSELoss()
         return l2(target, reconstructed_hdr)
-
-
-def define_model(pretrained=True):
-    resnext = models.resnext50_32x4d(pretrained=pretrained)
-    num_classes = 5  # each of the exposure levels
-    return resnext
 
 
 def train(model, loss_fun, optimizer, scheduler, num_epochs):
@@ -136,17 +131,18 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
 def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_loss = 0.0
     running_correct = 0
-    for mid_image, exposure_levels in dataloaders[phase]:
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+    for batch in dataloaders[phase]:
+        exposures, mid_exposure, ground_truth = batch.values()
+        mid_exposure = mid_exposure.to(device)
+        ground_truth = ground_truth.to(device)
 
         optimizer.zero_grad()
 
         # forwards pass
         with torch.set_grad_enabled(phase == Phase.TRAIN):
-            outputs = model(inputs)
+            outputs = model(mid_exposure)
             _, preds = torch.max(outputs, 1)
-            loss = loss_fun(outputs, labels)
+            loss = loss_fun([mid_exposure, exposures[preds]], ground_truth)
 
             # backwards + optim in training
             if phase == Phase.TRAIN:
