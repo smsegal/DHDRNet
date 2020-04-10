@@ -50,7 +50,13 @@ class HDRDataset(Dataset):
             gt_image = self.transforms(gt_image)
 
         exposures = [
-            np.array(ch.adjust_exposure(raw_image, exp_level))
+            np.array(ch.adjust_exposure(raw_image, exp_level)).swapaxes(-1, 0)
             for exp_level in self.exposure_levels
         ]
-        return {"exposures": exposures, "ground_truth": np.array(gt_image)}
+
+        mid_exposure = exposures.pop(len(exposures) // 2)
+        return {
+            "exposures": torch.Tensor(exposures),
+            "mid_exposure": mid_exposure,
+            "ground_truth": np.array(gt_image).swapaxes(-1, 0),
+        }

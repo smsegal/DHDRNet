@@ -14,6 +14,7 @@ import colour as co
 import colour_hdri as ch
 import cv2 as cv
 import numpy as np
+import torch
 from colour_hdri import (
     Image,
     ImageStack,
@@ -33,34 +34,31 @@ FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
 class CVFuse:
     def __init__(self, method: FuseMethod):
-        method_map = {
+        self.fuse_fun = {
             FuseMethod.Debevec: self.debevec_fuse,
             FuseMethod.Mertens: self.mertens_fuse,
             FuseMethod.Robertson: self.robertson_fuse,
-        }
-        self.fuse_fun = method_map[method]
+        }[method]
 
-    def __call__(self, images):
-        return self.fuse_fun(images)
+    def __call__(self, images: List[torch.Tensor]):
+        shapes = [i.shape for i in images]
+        reshaped = [i.permute(0, 3, 2, 1) for i in images]
+        return self.fuse_fun(reshaped)
 
-    def mertens_fuse(self, images: Indexable[Path]) -> Path:
+    def mertens_fuse(self, images: List[torch.Tensor]) -> Path:
         mertens_merger = cv.createMergeMertens()
-        loaded_images = [cv.imread(str(img_path)) for img_path in images]
-        return clip_hdr(mertens_merger.process(loaded_images))
+        return clip_hdr(mertens_merger.process(images))
 
     def debevec_fuse(self, images: Collection[Path]) -> Path:
         debevec_merger = cv.createMergeDebevec()
-        return self._cv_fuse(images, debevec_merger.process, "debevec", out_dir)
+        return self._cv_fuse(images, debevec_merger.process, "debevec")
 
     def robertson_fuse(self, images: Collection[Path]) -> Path:
         robertson_merger = cv.createMergeRobertson()
-        return self._cv_fuse(images, robertson_merger.process, "robertson", out_dir)
+        return self._cv_fuse(images, robertson_merger.process, "robertson")
 
     def _cv_fuse(
-        self,
-        images: Collection[Path],
-        fuse_func: Callable[[Collection[Path]], Collection[Path]],
-        method: str,
+        self, images: Collection[Path], fuse_func: Callable, method: str,
     ) -> Path:
         loaded_images = [cv.imread(str(img_path)) for img_path in images]
         exposure_levels = [int(image.name.split(".")[1]) for image in images]
