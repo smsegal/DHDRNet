@@ -19,6 +19,7 @@ from dhdrnet.image_loader import CVFuse, FuseMethod
 from dhdrnet.util import Indexable, get_project_root
 
 DATA_DIR = get_project_root() / "data"
+DEBUG = False
 
 
 class Phase(Enum):
@@ -48,7 +49,7 @@ batch_sizes = {
 }
 dataloaders = {
     split: torch.utils.data.DataLoader(
-        datasets[split], batch_size=batch_sizes[split], shuffle=True, num_workers=1,
+        datasets[split], batch_size=batch_sizes[split], shuffle=True, num_workers=0,
     )
     for split in Phase
 }
@@ -57,13 +58,19 @@ dataset_sizes = {x: len(datasets[x]) for x in Phase}
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def main():
+def main(debug: bool = None):
+    if debug is not None:
+        DEBUG = debug
     model = models.resnet50(pretrained=True)
+    # model.conv1 = nn.Conv2D(
+    #     in_channels=3,
+
+    # )
     num_features = model.fc.in_features
-    num_classes = 5  # number of exposures
+    num_classes = 4  # number of exposures
 
     model.fc = nn.Linear(num_features, num_classes)
-
+    model.to(device)
     fuser = CVFuse(FuseMethod.Mertens)
     criterion = ReconstructionLoss(fuser)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -88,7 +95,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
     since = time.time()
 
     best_weights = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+    best_loss = 0.0
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch}/{num_epochs - 1}")
@@ -109,20 +116,20 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
                 scheduler.step()
 
             epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_correct.double() / dataset_sizes[phase]
+            # epoch_acc = running_correct.double() / dataset_sizes[phase]
 
-            print(f"{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+            print(f"{phase} Loss: {epoch_loss:.4f}")
 
             # deep copy model if eval time
-            if phase == Phase.EVAL and epoch_acc > best_acc:
-                best_acc = epoch_acc
+            if phase == Phase.EVAL and epoch_loss > best_loss:
+                best_loss = epoch_loss
                 best_weights = copy.deepcopy(model.state_dict())
 
         print()  # line sep
 
     time_elapsed = time.time() - since
     print(f"Training complete in {time_elapsed // 60:.0f}m {time_elapsed %60:.0f}s")
-    print(f"Best val Acc: {best_acc:4f}")
+    # print(f"Best val Acc: {best_acc:4f}")
 
     model.load_state_dict(best_weights)
     return model
@@ -133,8 +140,16 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_correct = 0
     for batch in dataloaders[phase]:
         exposures, mid_exposure, ground_truth = batch.values()
-        mid_exposure = mid_exposure.to(device)
-        ground_truth = ground_truth.to(device)
+        if DEBUG:
+            for bn, bv in batch.items():
+                if type(bv) is not list:
+                    print(f"{bn}: {bv.shape}")
+                else:
+                    for e in bv:
+                        print(f"{e.shape=}")
+            return
+        mid_exposure = mid_exposure.to(torch.float32).to(device)
+        ground_truth = ground_truth.to(torch.float32).to(device)
 
         optimizer.zero_grad()
 
@@ -142,7 +157,8 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         with torch.set_grad_enabled(phase == Phase.TRAIN):
             outputs = model(mid_exposure)
             _, preds = torch.max(outputs, 1)
-            loss = loss_fun([mid_exposure, exposures[preds]], ground_truth)
+            selected_exposures = exposures[[preds]]
+            loss = loss_fun([mid_exposure, selected_exposures], ground_truth)
 
             # backwards + optim in training
             if phase == Phase.TRAIN:
@@ -150,9 +166,9 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
                 optimizer.step()
 
         # stats
-        running_loss += loss.item() * inputs.size(0)
-        running_correct += torch.sum(preds == labels.data)
-        return running_loss, running_correct
+        running_loss += loss.item() * mid_exposure.size(0)
+        # running_correct += torch.sum( == ground_truth.data)
+        return running_loss  # , running_correct
 
 
 if __name__ == "__main__":
