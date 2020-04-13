@@ -35,8 +35,8 @@ FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 class CVFuse:
     def __init__(self, method: FuseMethod):
         self.fuse_fun = {
-            FuseMethod.Debevec: self.debevec_fuse,
-            FuseMethod.Mertens: self.mertens_fuse,
+            FuseMethod.Debevec:   self.debevec_fuse,
+            FuseMethod.Mertens:   self.mertens_fuse,
             FuseMethod.Robertson: self.robertson_fuse,
         }[method]
 

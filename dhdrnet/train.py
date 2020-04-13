@@ -157,7 +157,10 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         with torch.set_grad_enabled(phase == Phase.TRAIN):
             outputs = model(mid_exposure)
             _, preds = torch.max(outputs, 1)
-            selected_exposures = exposures[[preds]]
+
+            with torch.no_grad():
+                selected_exposures = get_predicted_exps(exposures, preds)
+
             loss = loss_fun([mid_exposure, selected_exposures], ground_truth)
 
             # backwards + optim in training
@@ -169,6 +172,22 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         running_loss += loss.item() * mid_exposure.size(0)
         # running_correct += torch.sum( == ground_truth.data)
         return running_loss  # , running_correct
+
+
+def get_predicted_exps(exposures, preds):
+    """
+    exposures: shape = [batch_size x num_exposures x channels x width x height]
+    preds: shape = [batch_size] <-- one prediction per batch
+    """
+    selected_exposures = []
+    print(f"{exposures.shape=}")
+    for exposure, pred in zip(exposures, preds):
+        predicted_exposure = exposure[pred]
+        print(f"{predicted_exposure.shape=}")
+        selected_exposures.append(predicted_exposure)
+    selected_exposures_t = torch.stack(selected_exposures)
+    print(f"{selected_exposures_t.shape=}")
+    return selected_exposures_t
 
 
 if __name__ == "__main__":

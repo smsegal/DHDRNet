@@ -56,7 +56,7 @@ class HDRDataset(Dataset):
 
         mid_exposure = exposures.pop(len(exposures) // 2)
         return {
-            "exposures": torch.Tensor(exposures),
+            "exposures": torch.tensor(exposures),
             "mid_exposure": mid_exposure,
             "ground_truth": np.array(gt_image).swapaxes(-1, 0),
         }
