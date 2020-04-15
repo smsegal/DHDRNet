@@ -4,22 +4,19 @@ from typing import Collection
 import colour_hdri as ch
 import numpy as np
 import torch
-from skimage import io
-from torch.utils.data import Dataset
 from PIL import Image
-
-from dhdrnet.image_loader import read_hdr
+from torch.utils.data import Dataset
 
 
 class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self,
-        gt_dir: Path,
-        raw_dir: Path,
-        exposure_levels: Collection = np.linspace(-4, 4, 5),
-        transforms=None,
+            self,
+            gt_dir: Path,
+            raw_dir: Path,
+            exposure_levels: Collection = np.linspace(-4, 4, 5),
+            transforms=None,
     ):
         self.gt_dir = gt_dir
         self.raw_dir = raw_dir
@@ -50,13 +47,13 @@ class HDRDataset(Dataset):
             gt_image = self.transforms(gt_image)
 
         exposures = [
-            np.array(ch.adjust_exposure(raw_image, exp_level)).swapaxes(-1, 0)
+            ch.adjust_exposure(raw_image, exp_level)
             for exp_level in self.exposure_levels
         ]
 
-        mid_exposure = exposures.pop(len(exposures) // 2)
+        mid_exposure = exposures.pop(len(exposures) // 2).swapaxes(-1, 0)
         return {
-            "exposures": torch.tensor(exposures),
+            "exposures": exposures,
             "mid_exposure": mid_exposure,
             "ground_truth": np.array(gt_image).swapaxes(-1, 0),
         }

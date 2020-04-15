@@ -1,3 +1,4 @@
+import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
@@ -5,17 +6,13 @@ from pathlib import Path
 from pprint import pprint
 from subprocess import check_output
 from typing import (
-    Any,
     DefaultDict,
     Dict,
     Iterator,
     List,
     Mapping,
     Set,
-    NewType,
     TypeVar,
-    Generic,
-    Collection,
 )
 
 T = TypeVar("T")
@@ -27,22 +24,25 @@ class Indexable(Mapping[int, T]):
 
 
 def get_project_root() -> Path:
-    git_root = (
-        check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
-    )
-    return Path(git_root).absolute()
+    if not os.environ["DHDR_ROOT"]:
+        git_root = (
+            check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+        )
+        return Path(git_root).absolute()
+    else:
+        return Path(os.environ["DHDR_ROOT"])
 
 
 ROOT_DIR: Path = get_project_root()
-DATA_DIR: Path = ROOT_DIR / "data"
 
-
-def get_train_test(data_dir: Path):
-    pass
+if os.environ["DHDR_DATA_DIR"]:
+    DATA_DIR: Path = Path(str(os.environ["DHDR_DATA_DIR"]))
+else:
+    DATA_DIR: Path = ROOT_DIR / "data"
 
 
 def create_train_test_split(
-    data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
+        data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
 ):
     files: Set = set((data_dir / "dngs").iterdir())
 
@@ -65,7 +65,7 @@ def create_train_test_split(
 
 
 def split_dataset(
-    root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
+        root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
 ) -> Dict[Path, List[Path]]:
     ds_splits = ["train", "test", "val"]
     data_subdirs = ["dngs", "merged", "processed"]

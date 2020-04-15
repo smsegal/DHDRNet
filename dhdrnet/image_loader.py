@@ -8,7 +8,7 @@ from functools import partial, singledispatch
 from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
-from typing import Callable, Collection, DefaultDict, Generator, Iterator, List, Mapping
+from typing import Callable, Collection, DefaultDict, Iterator, List, Mapping
 
 import colour as co
 import colour_hdri as ch
@@ -19,13 +19,9 @@ from colour_hdri import (
     Image,
     ImageStack,
     camera_response_functions_Debevec1997,
-    filter_files,
     image_stack_to_radiance_image,
-    weighting_function_Debevec1997,
 )
 from deprecated import deprecated
-
-from dhdrnet.util import Indexable
 
 DATA_DIR = Path("../data").resolve()
 
@@ -35,31 +31,34 @@ FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 class CVFuse:
     def __init__(self, method: FuseMethod):
         self.fuse_fun = {
-            FuseMethod.Debevec:   self.debevec_fuse,
-            FuseMethod.Mertens:   self.mertens_fuse,
+            FuseMethod.Debevec: self.debevec_fuse,
+            FuseMethod.Mertens: self.mertens_fuse,
             FuseMethod.Robertson: self.robertson_fuse,
         }[method]
 
     def __call__(self, images: List[torch.Tensor]):
-        shapes = [i.shape for i in images]
-        reshaped = [i.permute(0, 3, 2, 1) for i in images]
-        return self.fuse_fun(reshaped)
+        # swap channels to openCV layout from pytorch
+        channel_swapped = (i.permute(5, 3, 2, 1).cpu().numpy() for i in images)
+        unbatched = zip(*channel_swapped)
+        return list(map(self.fuse_fun, unbatched))
 
-    def mertens_fuse(self, images: List[torch.Tensor]) -> Path:
+    @staticmethod
+    def mertens_fuse(images: List[torch.Tensor]) -> np.ndarray:
         mertens_merger = cv.createMergeMertens()
         return clip_hdr(mertens_merger.process(images))
 
-    def debevec_fuse(self, images: Collection[Path]) -> Path:
+    def debevec_fuse(self, images: Collection[Path]) -> np.ndarray:
         debevec_merger = cv.createMergeDebevec()
         return self._cv_fuse(images, debevec_merger.process, "debevec")
 
-    def robertson_fuse(self, images: Collection[Path]) -> Path:
+    def robertson_fuse(self, images: Collection[Path]) -> np.ndarray:
         robertson_merger = cv.createMergeRobertson()
         return self._cv_fuse(images, robertson_merger.process, "robertson")
 
+    @staticmethod
     def _cv_fuse(
-        self, images: Collection[Path], fuse_func: Callable, method: str,
-    ) -> Path:
+        images: Collection[Path], fuse_func: Callable, method: str,
+    ) -> np.ndarray:
         loaded_images = [cv.imread(str(img_path)) for img_path in images]
         exposure_levels = [int(image.name.split(".")[1]) for image in images]
         exp_min = np.min(exposure_levels)
@@ -251,7 +250,7 @@ def merge_all_test(merge_exp_paths):
     return merged
 
 
-def clip_hdr(fused):
+def clip_hdr(fused: np.ndarray) -> np.ndarray:
     return np.clip(fused * 255, 0, 255).astype("uint8")
 
 

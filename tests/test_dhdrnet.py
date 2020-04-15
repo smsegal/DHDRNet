@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from dhdrnet import __version__
 from dhdrnet.Dataset import HDRDataset
 from dhdrnet.util import (
     create_train_test_split,

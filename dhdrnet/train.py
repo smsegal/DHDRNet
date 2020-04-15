@@ -1,24 +1,18 @@
 import copy
 import time
 from enum import Enum
-from functools import partial
-from pathlib import Path
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision as tv
-from skimage import io, transform
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torchvision import models, transforms
 
 from dhdrnet.Dataset import HDRDataset
 from dhdrnet.image_loader import CVFuse, FuseMethod
-from dhdrnet.util import Indexable, get_project_root
+from dhdrnet.util import DATA_DIR
 
-DATA_DIR = get_project_root() / "data"
 DEBUG = False
 
 
@@ -128,7 +122,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
         print()  # line sep
 
     time_elapsed = time.time() - since
-    print(f"Training complete in {time_elapsed // 60:.0f}m {time_elapsed %60:.0f}s")
+    print(f"Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
     # print(f"Best val Acc: {best_acc:4f}")
 
     model.load_state_dict(best_weights)
@@ -180,7 +174,7 @@ def get_predicted_exps(exposures, preds):
     preds: shape = [batch_size] <-- one prediction per batch
     """
     selected_exposures = []
-    print(f"{exposures.shape=}")
+    # print(f"{exposures.shape=}")
     for exposure, pred in zip(exposures, preds):
         predicted_exposure = exposure[pred]
         print(f"{predicted_exposure.shape=}")
