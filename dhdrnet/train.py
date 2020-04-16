@@ -1,22 +1,16 @@
 import copy
 import time
 from enum import Enum
-from functools import partial
-from pathlib import Path
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision as tv
-from skimage import io, transform
 from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader
 from torchvision import models, transforms
 
 from dhdrnet.Dataset import HDRDataset
-from dhdrnet.image_loader import CVFuse, FuseMethod
-from dhdrnet.util import Indexable, get_project_root
+from dhdrnet.reconstruction_loss import FuseMethod, ReconstructionLoss
+from dhdrnet.util import get_project_root
 
 DATA_DIR = get_project_root() / "data"
 DEBUG = False
@@ -62,33 +56,18 @@ def main(debug: bool = None):
     if debug is not None:
         DEBUG = debug
     model = models.resnet50(pretrained=True)
-    # model.conv1 = nn.Conv2D(
-    #     in_channels=3,
-
-    # )
     num_features = model.fc.in_features
     num_classes = 4  # number of exposures
 
     model.fc = nn.Linear(num_features, num_classes)
     model.to(device)
-    fuser = CVFuse(FuseMethod.Mertens)
-    criterion = ReconstructionLoss(fuser)
+
+    criterion = ReconstructionLoss(FuseMethod.Mertens)
+
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=25)
-
-
-class ReconstructionLoss(nn.Module):
-    def __init__(self, fuse_fun):
-        super(ReconstructionLoss, self).__init__()
-        self.fuse_fun = fuse_fun
-
-    def forward(self, inputs, target):
-        with torch.no_grad():
-            reconstructed_hdr = self.fuse_fun(inputs)
-        l2 = nn.MSELoss()
-        return l2(target, reconstructed_hdr)
 
 
 def train(model, loss_fun, optimizer, scheduler, num_epochs):
