@@ -47,11 +47,11 @@ class HDRDataset(Dataset):
             gt_image = self.transforms(gt_image)
 
         exposures = [
-            ch.adjust_exposure(raw_image, exp_level)
+            ch.adjust_exposure(raw_image, exp_level).swapaxes(-1, 0)
             for exp_level in self.exposure_levels
         ]
 
-        mid_exposure = exposures.pop(len(exposures) // 2).swapaxes(-1, 0)
+        mid_exposure = exposures.pop(len(exposures) // 2)
         return {
             "exposures": exposures,
             "mid_exposure": mid_exposure,

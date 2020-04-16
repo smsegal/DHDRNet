@@ -1,13 +1,18 @@
 from enum import Enum
+from pathlib import Path
+from typing import Collection, List, Callable, Union
 
-import numpy as np
 import cv2 as cv
-from torch import nn
+import numpy as np
+import torch
+from torch import nn, Tensor
 
 FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
 
 class ReconstructionLoss(nn.Module):
+    fuse_fun: Callable[[List[Tensor]], Tensor]
+
     def __init__(self, fusemethod: FuseMethod):
         super(ReconstructionLoss, self).__init__()
         self.fuse_fun = {
@@ -18,32 +23,35 @@ class ReconstructionLoss(nn.Module):
 
     def forward(self, inputs, target):
         with torch.no_grad():
-            reconstructed_hdr = self.fuse_fun(inputs)
+            reconstructed_list = []
+            for imgs in zip(*inputs):
+                reshaped = [img.permute(2, 1, 0).cpu().numpy() for img in imgs]
+                reconstructed_list.append(self.fuse_fun(reshaped))
+            reconstructed_hdr = torch.stack(reconstructed_list)
         l2 = nn.MSELoss()
         return l2(target, reconstructed_hdr)
 
-    def mertens_fuse(self, images: List[torch.Tensor]) -> Path:
+    def mertens_fuse(self, images: List[np.ndarray]) -> Tensor:
         mertens_merger = cv.createMergeMertens()
-        return clip_hdr(mertens_merger.process(images))
+        return torch.tensor(clip_hdr(mertens_merger.process(images)))
 
-    def debevec_fuse(self, images: Collection[Path]) -> Path:
+    def debevec_fuse(self, images: List[torch.Tensor]) -> Tensor:
         debevec_merger = cv.createMergeDebevec()
         return self._cv_fuse(images, debevec_merger.process, "debevec")
 
-    def robertson_fuse(self, images: Collection[Path]) -> Path:
+    def robertson_fuse(self, images: List[torch.Tensor]) -> Tensor:
         robertson_merger = cv.createMergeRobertson()
         return self._cv_fuse(images, robertson_merger.process, "robertson")
 
     def _cv_fuse(
-        self, images: Collection[Path], fuse_func: Callable, method: str,
-    ) -> Path:
-        loaded_images = [cv.imread(str(img_path)) for img_path in images]
-        exposure_levels = [int(image.name.split(".")[1]) for image in images]
+        self, images: List[np.ndarray], fuse_func: Callable, method: str,
+    ) -> Tensor:
+        exposure_levels = list(range(len(images)))
         exp_min = np.min(exposure_levels)
         exp_max = np.max(exposure_levels)
         exp_normed_shift = (exposure_levels - exp_min + 1) / (exp_max - exp_min)
         tonemap = cv.createTonemap(gamma=2.2)
-        hdr = fuse_func(loaded_images, times=exp_normed_shift.copy())
+        hdr = fuse_func(images, times=exp_normed_shift.copy())
         result = tonemap.process(hdr.copy())
 
         return clip_hdr(result)

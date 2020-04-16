@@ -10,7 +10,7 @@ from torchvision import models, transforms
 
 from dhdrnet.Dataset import HDRDataset
 from dhdrnet.reconstruction_loss import FuseMethod, ReconstructionLoss
-from dhdrnet.util import get_project_root
+from dhdrnet.util import DATA_DIR
 
 DEBUG = False
 
