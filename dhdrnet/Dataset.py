@@ -12,17 +12,12 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-            self,
-            gt_dir: Path,
-            raw_dir: Path,
-            exposure_levels: Collection = np.linspace(-4, 4, 5),
-            transforms=None,
+        self, gt_dir: Path, exp_dir: Path, transforms=None,
     ):
         self.gt_dir = gt_dir
-        self.raw_dir = raw_dir
+        self.exp_dir = exp_dir
 
         self.gt_paths = list(self.gt_dir.iterdir())
-        self.exposure_levels = exposure_levels
         self.transforms = transforms
 
     def __len__(self):
@@ -37,23 +32,30 @@ class HDRDataset(Dataset):
             idx = idx.to_list()
 
         gt_path = self.gt_paths[idx]
-        raw_image = Image.open(
-            self.raw_dir / f"{gt_path.stem}.dng"
-        )  # read_hdr(self.raw_dir / f"{gt_path.stem}.dng")
         gt_image = Image.open(gt_path)
 
+        img_name = gt_path.stem
+        exposure_paths = sorted(
+            self.exp_dir.glob(f"{img_name}*"), key=lambda p: int(p.stem.split(".")[-1])
+        )
+
+        # mid exposure is only one that matches with a 0 at the end
+        mid_exposure_path = [ep for ep in exposure_paths if ep.stem.endswith("0")][0]
+        mid_exposure = Image.open(mid_exposure_path)
+
         if self.transforms:
-            raw_image = self.transforms(raw_image)
             gt_image = self.transforms(gt_image)
+            mid_exposure = self.transforms(mid_exposure)
 
-        exposures = [
-            ch.adjust_exposure(raw_image, exp_level).swapaxes(-1, 0)
-            for exp_level in self.exposure_levels
-        ]
-
-        mid_exposure = exposures.pop(len(exposures) // 2)
         return {
-            "exposures": exposures,
+            "exposure_paths": exposure_paths,
             "mid_exposure": mid_exposure,
-            "ground_truth": np.array(gt_image).swapaxes(-1, 0),
+            "ground_truth": gt_image,
         }
+
+
+def collate_fn(batch):
+    exposure_paths = [b["exposure_paths"] for b in batch]
+    mid_exposure = torch.stack([b["mid_exposure"] for b in batch])
+    ground_truth = torch.stack([b["ground_truth"] for b in batch])
+    return exposure_paths, mid_exposure, ground_truth

@@ -22,16 +22,22 @@ class Phase(Enum):
 
 data_transforms = {
     Phase.TRAIN: transforms.Compose(
-        [transforms.CenterCrop((360, 474))]  # min dimensions along DS
+        [
+            transforms.CenterCrop((360, 474)),  # min dimensions along DS
+            transforms.ToTensor(),
+        ]
     ),
     Phase.EVAL: transforms.Compose(
-        [transforms.CenterCrop((360, 474))]  # min dimensions along DS
+        [
+            transforms.CenterCrop((360, 474)),  # min dimensions along DS
+            transforms.ToTensor(),
+        ]
     ),
 }
 datasets = {
     split: HDRDataset(
         DATA_DIR / split.value / "merged",
-        DATA_DIR / split.value / "dngs",
+        DATA_DIR / split.value / "processed",
         transforms=data_transforms[split],
     )
     for split in Phase
@@ -57,6 +63,8 @@ def main(debug: bool = None):
     model = models.resnet50(pretrained=True)
     num_features = model.fc.in_features
     num_classes = 4  # number of exposures
+    # since the middle exposure is 0, when we get the predictions, need to shift top two up.
+    # [0..3] --> [-2..0)U(0..2]
 
     model.fc = nn.Linear(num_features, num_classes)
     model.to(device)
@@ -117,15 +125,11 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_loss = 0.0
     running_correct = 0
     for batch in dataloaders[phase]:
-        exposures, mid_exposure, ground_truth = batch.values()
-        if DEBUG:
-            for bn, bv in batch.items():
-                if type(bv) is not list:
-                    print(f"{bn}: {bv.shape}")
-                else:
-                    for e in bv:
-                        print(f"{e.shape=}")
-            return
+        exposure_paths, mid_exposure, ground_truth = batch
+        # print(exposure_paths)
+        # print(mid_exposure.shape)
+        # print(ground_truth.shape)
+        # return
         mid_exposure = mid_exposure.to(torch.float32).to(device)
         ground_truth = ground_truth.to(torch.float32).to(device)
 
@@ -135,11 +139,12 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         with torch.set_grad_enabled(phase == Phase.TRAIN):
             outputs = model(mid_exposure)
             _, preds = torch.max(outputs, 1)
-
             with torch.no_grad():
-                selected_exposures = get_predicted_exps(exposures, preds)
+                selected_exposures = get_predicted_exps(exposure_paths, preds)
+                for se in selected_exposures:
+                    print(se)
 
-            loss = loss_fun([mid_exposure, selected_exposures], ground_truth)
+            loss = loss_fun(selected_exposures, ground_truth)
 
             # backwards + optim in training
             if phase == Phase.TRAIN:
@@ -157,16 +162,12 @@ def get_predicted_exps(exposures, preds):
     exposures: shape = [batch_size x num_exposures x channels x width x height]
     preds: shape = [batch_size] <-- one prediction per batch
     """
-    selected_exposures = []
-    # print(f"{exposures.shape=}")
-    for exposure, pred in zip(exposures, preds):
-        predicted_exposure = exposure[pred]
-        print(f"{predicted_exposure.shape=}")
-        selected_exposures.append(predicted_exposure)
-    selected_exposures_t = torch.stack(selected_exposures)
-    print(f"{selected_exposures_t.shape=}")
-    return selected_exposures_t
+    shifted = shift_preds(preds)
+    return [exposure[pred] for exposure, pred in zip(exposures, shifted)]
 
+def shift_preds(preds):
+    preds[preds >= 2] += 1
+    return preds
 
 if __name__ == "__main__":
     main()
