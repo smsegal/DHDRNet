@@ -6,6 +6,8 @@ import cv2 as cv
 import numpy as np
 import torch
 from torch import nn, Tensor
+from dhdrnet import util
+from dhdrnet.util import get_mid_exp
 
 FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
@@ -21,15 +23,25 @@ class ReconstructionLoss(nn.Module):
             FuseMethod.Robertson: self.robertson_fuse,
         }[fusemethod]
 
-    def forward(self, inputs, target):
+    def forward(self, pred_paths, ground_truth):
         with torch.no_grad():
-            reconstructed_list = []
-            for imgs in zip(*inputs):
-                reshaped = [img.permute(2, 1, 0).cpu().numpy() for img in imgs]
-                reconstructed_list.append(self.fuse_fun(reshaped))
-            reconstructed_hdr = torch.stack(reconstructed_list)
+            # reconstructed_list = []
+            # for imgs in zip(*inputs):
+            #     reshaped = [img.permute(2, 1, 0).cpu().numpy() for img in imgs]
+            #     reconstructed_list.append(self.fuse_fun(reshaped))
+            # reconstructed_hdr = torch.stack(reconstructed_list)
+
+            for pred_p in pred_paths:
+                mid_exp_p = get_mid_exp(pred_p)
+                print(mid_exp_p)
+                print(pred_p)
+                print("-------")
+                mid_exp = cv.imread()
+                predicted = cv.imread(pred_p)
+
         l2 = nn.MSELoss()
-        return l2(target, reconstructed_hdr)
+        return
+        # return l2(target, reconstructed_hdr)
 
     def mertens_fuse(self, images: List[np.ndarray]) -> Tensor:
         mertens_merger = cv.createMergeMertens()
@@ -55,13 +67,6 @@ class ReconstructionLoss(nn.Module):
         result = tonemap.process(hdr.copy())
 
         return clip_hdr(result)
-
-
-class CVFuse:
-    def __call__(self, images: List[torch.Tensor]):
-        shapes = [i.shape for i in images]
-        reshaped = [i.permute(0, 3, 2, 1) for i in images]
-        return self.fuse_fun(reshaped)
 
 
 def clip_hdr(fused):

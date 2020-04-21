@@ -26,7 +26,9 @@ class Indexable(Mapping[int, T]):
 def get_project_root() -> Path:
     if not os.environ["DHDR_ROOT"]:
         git_root = (
-            check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+            check_output(["git", "rev-parse", "--show-toplevel"])
+            .decode("utf-8")
+            .strip()
         )
         return Path(git_root).absolute()
     else:
@@ -42,7 +44,7 @@ else:
 
 
 def create_train_test_split(
-        data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
+    data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
 ):
     files: Set = set((data_dir / "dngs").iterdir())
 
@@ -65,7 +67,7 @@ def create_train_test_split(
 
 
 def split_dataset(
-        root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
+    root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
 ) -> Dict[Path, List[Path]]:
     ds_splits = ["train", "test", "val"]
     data_subdirs = ["dngs", "merged", "processed"]
@@ -143,3 +145,16 @@ def flatten(items, ignore_types=(str, bytes)):
             yield from flatten(x)
         else:
             yield x
+
+
+def get_img_name(path: Path) -> str:
+    """
+    path: needs to be of the form $DATA_DIR/../../{IMG_NAME}.{EXP_LEVEL}.{ext}
+    """
+    return path.stem.split(".")[0]
+
+
+def get_mid_exp(path: Path):
+    name = get_img_name(path)
+    possible_exps = path.parent.glob(f"{name}.0.*")
+    return next(possible_exps)

@@ -145,6 +145,7 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
             _, preds = torch.max(outputs, 1)
             with torch.no_grad():
                 selected_exposures = get_predicted_exps(exposure_paths, preds)
+                print("selected_exposures")
                 for se in selected_exposures:
                     print(se)
 
