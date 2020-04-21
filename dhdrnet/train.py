@@ -8,7 +8,7 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import models, transforms
 
-from dhdrnet.Dataset import HDRDataset
+from dhdrnet.Dataset import HDRDataset, collate_fn
 from dhdrnet.reconstruction_loss import FuseMethod, ReconstructionLoss
 from dhdrnet.util import DATA_DIR
 
@@ -48,7 +48,11 @@ batch_sizes = {
 }
 dataloaders = {
     split: torch.utils.data.DataLoader(
-        datasets[split], batch_size=batch_sizes[split], shuffle=True, num_workers=0,
+        datasets[split],
+        batch_size=batch_sizes[split],
+        shuffle=True,
+        num_workers=0,
+        collate_fn=collate_fn,
     )
     for split in Phase
 }
