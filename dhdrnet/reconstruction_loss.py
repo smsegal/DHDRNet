@@ -15,33 +15,32 @@ FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 class ReconstructionLoss(nn.Module):
     fuse_fun: Callable[[List[Tensor]], Tensor]
 
-    def __init__(self, fusemethod: FuseMethod):
+    def __init__(self, fusemethod: FuseMethod, transforms: Callable):
         super(ReconstructionLoss, self).__init__()
         self.fuse_fun = {
             FuseMethod.Debevec: self.debevec_fuse,
             FuseMethod.Mertens: self.mertens_fuse,
             FuseMethod.Robertson: self.robertson_fuse,
         }[fusemethod]
+        self.transforms = transforms
 
-    def forward(self, pred_paths, ground_truth):
+    def forward(self, inputs):
         with torch.no_grad():
-            # reconstructed_list = []
-            # for imgs in zip(*inputs):
-            #     reshaped = [img.permute(2, 1, 0).cpu().numpy() for img in imgs]
-            #     reconstructed_list.append(self.fuse_fun(reshaped))
-            # reconstructed_hdr = torch.stack(reconstructed_list)
-
+            pred_paths, ground_truth = inputs
+            fused_batch = []
             for pred_p in pred_paths:
                 mid_exp_p = get_mid_exp(pred_p)
-                print(mid_exp_p)
-                print(pred_p)
-                print("-------")
-                mid_exp = cv.imread()
-                predicted = cv.imread(pred_p)
-
+                mid_exp = cv.imread(str(mid_exp_p))
+                predicted = cv.imread(str(pred_p))
+                fused = self.transforms(np.array(self.fuse_fun([mid_exp, predicted])))
+                print(f"{fused.shape=}")
+                fused_batch.append(fused)
+            reconstructed_hdr = torch.stack(fused_batch)
         l2 = nn.MSELoss()
-        return
-        # return l2(target, reconstructed_hdr)
+        print("the below shapes should match")
+        print(f"{ground_truth.shape=}")
+        print(f"{reconstructed_hdr.shape=}")
+        return l2(reconstructed_hdr, ground_truth)
 
     def mertens_fuse(self, images: List[np.ndarray]) -> Tensor:
         mertens_merger = cv.createMergeMertens()

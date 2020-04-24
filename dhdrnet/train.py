@@ -73,7 +73,9 @@ def main(debug: bool = None):
     model.fc = nn.Linear(num_features, num_classes)
     model.to(device)
 
-    criterion = ReconstructionLoss(FuseMethod.Mertens)
+    criterion = ReconstructionLoss(
+        FuseMethod.Mertens, transforms=data_transforms[Phase.TRAIN]
+    )
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
@@ -149,7 +151,7 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
                 for se in selected_exposures:
                     print(se)
 
-            loss = loss_fun(selected_exposures, ground_truth)
+            loss = loss_fun([selected_exposures, ground_truth])
 
             # backwards + optim in training
             if phase == Phase.TRAIN:
@@ -170,9 +172,11 @@ def get_predicted_exps(exposures, preds):
     shifted = shift_preds(preds)
     return [exposure[pred] for exposure, pred in zip(exposures, shifted)]
 
+
 def shift_preds(preds):
     preds[preds >= 2] += 1
     return preds
+
 
 if __name__ == "__main__":
     main()
