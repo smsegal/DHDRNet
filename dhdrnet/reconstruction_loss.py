@@ -32,10 +32,11 @@ class ReconstructionLoss(nn.Module):
                 mid_exp_p = get_mid_exp(pred_p)
                 mid_exp = cv.imread(str(mid_exp_p))
                 predicted = cv.imread(str(pred_p))
-                fused = self.transforms(np.array(self.fuse_fun([mid_exp, predicted])))
+                fused = np.array(self.fuse_fun([mid_exp, predicted]))
+
                 print(f"{fused.shape=}")
                 fused_batch.append(fused)
-            reconstructed_hdr = torch.stack(fused_batch)
+            reconstructed_hdr = torch.stack(list(map(self.transforms, fused_batch)))
         l2 = nn.MSELoss()
         print("the below shapes should match")
         print(f"{ground_truth.shape=}")
@@ -44,7 +45,7 @@ class ReconstructionLoss(nn.Module):
 
     def mertens_fuse(self, images: List[np.ndarray]) -> Tensor:
         mertens_merger = cv.createMergeMertens()
-        return torch.tensor(clip_hdr(mertens_merger.process(images)))
+        return clip_hdr(mertens_merger.process(images))
 
     def debevec_fuse(self, images: List[torch.Tensor]) -> Tensor:
         debevec_merger = cv.createMergeDebevec()

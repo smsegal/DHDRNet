@@ -24,7 +24,7 @@ class Indexable(Mapping[int, T]):
 
 
 def get_project_root() -> Path:
-    if not os.environ["DHDR_ROOT"]:
+    if "DHDR_ROOT" not in os.environ:
         git_root = (
             check_output(["git", "rev-parse", "--show-toplevel"])
             .decode("utf-8")
@@ -36,11 +36,9 @@ def get_project_root() -> Path:
 
 
 ROOT_DIR: Path = get_project_root()
-
-if os.environ["DHDR_DATA_DIR"]:
-    DATA_DIR: Path = Path(str(os.environ["DHDR_DATA_DIR"]))
-else:
-    DATA_DIR: Path = ROOT_DIR / "data"
+DATA_DIR: Path = Path(
+    str(os.environ["DHDR_DATA_DIR"])
+) if "DHDR_DATA_DIR" in os.environ else ROOT_DIR / "data"
 
 
 def create_train_test_split(

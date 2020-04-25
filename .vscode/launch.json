@@ -9,14 +9,17 @@
       "type": "python",
       "request": "launch",
       "program": "${workspaceRoot}/dhdrnet/data_gen.py",
-      "args": ["-m", "debevec"],
+      "args": [
+        "-m",
+        "debevec"
+      ],
       "console": "integratedTerminal"
     },
     {
       "name": "Python: model train",
       "type": "python",
       "request": "launch",
-      "module": "dhdrnet.model",
+      "module": "dhdrnet.train",
     }
   ]
 }
