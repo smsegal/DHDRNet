@@ -73,14 +73,11 @@ def main(debug: bool = None):
     model.fc = nn.Linear(num_features, num_classes)
     model.to(device)
 
-    criterion = ReconstructionLoss(
-        FuseMethod.Mertens, transforms=data_transforms[Phase.TRAIN]
-    )
-
+    criterion = ReconstructionLoss(FuseMethod.Mertens)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-
     train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=25)
+    #save model and stuff
 
 
 def train(model, loss_fun, optimizer, scheduler, num_epochs):
@@ -132,10 +129,6 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_correct = 0
     for batch in dataloaders[phase]:
         exposure_paths, mid_exposure, ground_truth = batch
-        # print(exposure_paths)
-        # print(mid_exposure.shape)
-        # print(ground_truth.shape)
-        # return
         mid_exposure = mid_exposure.to(torch.float32).to(device)
         ground_truth = ground_truth.to(torch.float32).to(device)
 

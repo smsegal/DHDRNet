@@ -2,18 +2,11 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
+from math import ceil
 from pathlib import Path
 from pprint import pprint
-from subprocess import check_output
-from typing import (
-    DefaultDict,
-    Dict,
-    Iterator,
-    List,
-    Mapping,
-    Set,
-    TypeVar,
-)
+from subprocess import check_output, CalledProcessError
+from typing import DefaultDict, Dict, Iterator, List, Mapping, Set, TypeVar
 
 T = TypeVar("T")
 
@@ -23,16 +16,24 @@ class Indexable(Mapping[int, T]):
         super(self, *args, **kwargs)
 
 
+root_env_keys = ["IDE_PROJECT_ROOTS", "DHDR_ROOT"]
+
+
 def get_project_root() -> Path:
-    if "DHDR_ROOT" not in os.environ:
+    for key in root_env_keys:
+        if key in os.environ:
+            return Path(os.environ[key])
+    try:
         git_root = (
             check_output(["git", "rev-parse", "--show-toplevel"])
             .decode("utf-8")
             .strip()
         )
         return Path(git_root).absolute()
-    else:
-        return Path(os.environ["DHDR_ROOT"])
+    except CalledProcessError:
+        # not in a git repo
+        # out of options here, might want to just fail at this point
+        return Path.cwd().parent.parent
 
 
 ROOT_DIR: Path = get_project_root()
@@ -156,3 +157,21 @@ def get_mid_exp(path: Path):
     name = get_img_name(path)
     possible_exps = path.parent.glob(f"{name}.0.*")
     return next(possible_exps)
+
+
+def min_centercrop(images: List):
+    shapes = (im.shape for im in images)
+    return centercrop(images, map(min, zip(*shapes)))
+
+
+def centercrop(images, shape):
+    minw, minh = shape
+    all_cropped = []
+    for im in images:
+        w, h = im.shape[:-1]
+        cropped = im[
+            ceil((w - minw) / 2) : ceil(w - ((w - minw) / 2)),
+            ceil((h - minh) / 2) : ceil(h - ((h - minh) / 2)),
+        ]
+        all_cropped.append(cropped)
+    return all_cropped

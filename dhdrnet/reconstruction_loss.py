@@ -11,18 +11,19 @@ from dhdrnet.util import get_mid_exp
 
 FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 class ReconstructionLoss(nn.Module):
     fuse_fun: Callable[[List[Tensor]], Tensor]
 
-    def __init__(self, fusemethod: FuseMethod, transforms: Callable):
+    def __init__(self, fusemethod: FuseMethod):
         super(ReconstructionLoss, self).__init__()
         self.fuse_fun = {
             FuseMethod.Debevec: self.debevec_fuse,
             FuseMethod.Mertens: self.mertens_fuse,
             FuseMethod.Robertson: self.robertson_fuse,
         }[fusemethod]
-        self.transforms = transforms
 
     def forward(self, inputs):
         with torch.no_grad():
@@ -32,18 +33,29 @@ class ReconstructionLoss(nn.Module):
                 mid_exp_p = get_mid_exp(pred_p)
                 mid_exp = cv.imread(str(mid_exp_p))
                 predicted = cv.imread(str(pred_p))
-                fused = np.array(self.fuse_fun([mid_exp, predicted]))
+                fused = torch.tensor(self.fuse_fun([mid_exp, predicted]))
 
                 print(f"{fused.shape=}")
+                print(f"{type(fused)=}")
                 fused_batch.append(fused)
-            reconstructed_hdr = torch.stack(list(map(self.transforms, fused_batch)))
+            reconstructed_hdr = torch.stack(
+                util.centercrop(
+                    fused_batch,
+                    ground_truth.shape[
+                        2:
+                    ],  # last two entries of shape are w,h for a torch.tensor
+                )
+            ).permute(
+                0, 3, 1, 2
+            )  # swap to torch dimension order
         l2 = nn.MSELoss()
-        print("the below shapes should match")
-        print(f"{ground_truth.shape=}")
-        print(f"{reconstructed_hdr.shape=}")
-        return l2(reconstructed_hdr, ground_truth)
+        # print("the below shapes should match")
+        # print(f"{ground_truth.shape=}")
+        # print(f"{reconstructed_hdr.shape=}")
+        # transfer to GPU
+        return l2(reconstructed_hdr.to(device), ground_truth)
 
-    def mertens_fuse(self, images: List[np.ndarray]) -> Tensor:
+    def mertens_fuse(self, images: List[np.ndarray]) -> np.ndarray:
         mertens_merger = cv.createMergeMertens()
         return clip_hdr(mertens_merger.process(images))
 
