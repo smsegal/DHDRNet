@@ -86,7 +86,15 @@ def main(debug: bool = None):
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     epochs = 100
-    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs)
+    steps_per_epoch = 100
+    trained = train(
+        model,
+        criterion,
+        optimizer,
+        exp_lr_scheduler,
+        num_epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
+    )
 
     timestamp = datetime.now().strftime("%m-%d-%R")
     torch.save(
@@ -100,7 +108,7 @@ def main(debug: bool = None):
     )
 
 
-def train(model, loss_fun, optimizer, scheduler, num_epochs):
+def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch=100):
     since = time.time()
 
     best_weights = copy.deepcopy(model.state_dict())
@@ -113,14 +121,14 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
         for phase in Phase:
             if phase == Phase.TRAIN:
                 model.train()  # set to training mode
+                for step in range(steps_per_epoch):
+                    # iterate over data
+                    running_loss = fit(
+                        dataloaders, model, phase, loss_fun, device, optimizer
+                    )
+                    scheduler.step()
             else:
                 model.eval()
-
-            # iterate over data
-            running_loss = fit(dataloaders, model, phase, loss_fun, device, optimizer)
-
-            if phase == Phase.TRAIN:
-                scheduler.step()
 
             epoch_loss = running_loss / dataset_sizes[phase]
             # epoch_acc = running_correct.double() / dataset_sizes[phase]
@@ -131,6 +139,13 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
             if phase == Phase.EVAL and epoch_loss > best_loss:
                 best_loss = epoch_loss
                 best_weights = copy.deepcopy(model.state_dict())
+
+            if epoch % 10 == 0:
+                timestamp = datetime.now().strftime("%m-%d-%R")
+                torch.save(
+                    model.state_dict(),
+                    MODEL_DIR / "checkpoints" / f"dhdr_checkpoint_{timestamp}.pt",
+                )
 
         print()  # line sep
 
