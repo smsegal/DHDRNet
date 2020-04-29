@@ -40,7 +40,7 @@ ROOT_DIR: Path = get_project_root()
 DATA_DIR: Path = Path(
     str(os.environ["DHDR_DATA_DIR"])
 ) if "DHDR_DATA_DIR" in os.environ else ROOT_DIR / "data"
-
+MODEL_DIR: Path = ROOT_DIR / "models"
 
 def create_train_test_split(
     data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False

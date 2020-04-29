@@ -1,16 +1,19 @@
 import copy
 import time
 from enum import Enum
+from typing import List
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import models, transforms
 
+import dhdrnet.util as util
 from dhdrnet.Dataset import HDRDataset, collate_fn
-from dhdrnet.reconstruction_loss import FuseMethod, ReconstructionLoss
-from dhdrnet.util import DATA_DIR
+from dhdrnet.util import DATA_DIR, get_mid_exp
+from image_loader import clip_hdr
 
 DEBUG = False
 
@@ -61,23 +64,27 @@ dataset_sizes = {x: len(datasets[x]) for x in Phase}
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
+    mertens_merger = cv.createMergeMertens()
+    return clip_hdr(mertens_merger.process(images))
+
+
 def main(debug: bool = None):
     if debug is not None:
         DEBUG = debug
     model = models.resnet50(pretrained=True)
     num_features = model.fc.in_features
     num_classes = 4  # number of exposures
-    # since the middle exposure is 0, when we get the predictions, need to shift top two up.
-    # [0..3] --> [-2..0)U(0..2]
 
     model.fc = nn.Linear(num_features, num_classes)
     model.to(device)
 
-    criterion = ReconstructionLoss(FuseMethod.Mertens)
+    criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-    train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=25)
-    #save model and stuff
+    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=25)
+    torch.save(trained.state_dict(),)
+    # save model and stuff
 
 
 def train(model, loss_fun, optimizer, scheduler, num_epochs):
@@ -97,9 +104,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
                 model.eval()
 
             # iterate over data
-            running_loss, running_correct = fit(
-                dataloaders, model, phase, loss_fun, device, optimizer
-            )
+            running_loss = fit(dataloaders, model, phase, loss_fun, device, optimizer)
 
             if phase == Phase.TRAIN:
                 scheduler.step()
@@ -124,6 +129,9 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
     return model
 
 
+import cv2 as cv
+
+
 def fit(dataloaders, model, phase, loss_fun, device, optimizer):
     running_loss = 0.0
     running_correct = 0
@@ -138,13 +146,10 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         with torch.set_grad_enabled(phase == Phase.TRAIN):
             outputs = model(mid_exposure)
             _, preds = torch.max(outputs, 1)
-            with torch.no_grad():
-                selected_exposures = get_predicted_exps(exposure_paths, preds)
-                print("selected_exposures")
-                for se in selected_exposures:
-                    print(se)
-
-            loss = loss_fun([selected_exposures, ground_truth])
+            reconstructed_hdr = reconstruct_hdr_from_pred(
+                exposure_paths, ground_truth, preds
+            )
+            loss = loss_fun(reconstructed_hdr.to(device), ground_truth)
 
             # backwards + optim in training
             if phase == Phase.TRAIN:
@@ -155,6 +160,26 @@ def fit(dataloaders, model, phase, loss_fun, device, optimizer):
         running_loss += loss.item() * mid_exposure.size(0)
         # running_correct += torch.sum( == ground_truth.data)
         return running_loss  # , running_correct
+
+
+def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
+    with torch.no_grad():
+        selected_exposures = get_predicted_exps(exposure_paths, preds)
+        fused_batch = []
+        for pred_p in selected_exposures:
+            mid_exp_p = get_mid_exp(pred_p)
+            mid_exp = cv.imread(str(mid_exp_p))
+            predicted = cv.imread(str(pred_p))
+            fused = torch.tensor(mertens_fuse([mid_exp, predicted]), dtype=torch.float)
+
+            # print(f"{fused.shape=}")
+            # print(f"{type(fused)=}")
+            fused_batch.append(fused)
+        # last two entries of shape are w,h for a torch.tensor
+    centercrop = util.centercrop(fused_batch, ground_truth.shape[2:])
+    reconstruction = torch.stack(centercrop).permute(0, 3, 1, 2)
+    reconstruction.requires_grad_()
+    return reconstruction
 
 
 def get_predicted_exps(exposures, preds):

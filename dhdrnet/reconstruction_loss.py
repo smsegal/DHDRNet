@@ -27,27 +27,6 @@ class ReconstructionLoss(nn.Module):
 
     def forward(self, inputs):
         with torch.no_grad():
-            pred_paths, ground_truth = inputs
-            fused_batch = []
-            for pred_p in pred_paths:
-                mid_exp_p = get_mid_exp(pred_p)
-                mid_exp = cv.imread(str(mid_exp_p))
-                predicted = cv.imread(str(pred_p))
-                fused = torch.tensor(self.fuse_fun([mid_exp, predicted]))
-
-                print(f"{fused.shape=}")
-                print(f"{type(fused)=}")
-                fused_batch.append(fused)
-            reconstructed_hdr = torch.stack(
-                util.centercrop(
-                    fused_batch,
-                    ground_truth.shape[
-                        2:
-                    ],  # last two entries of shape are w,h for a torch.tensor
-                )
-            ).permute(
-                0, 3, 1, 2
-            )  # swap to torch dimension order
         l2 = nn.MSELoss()
         # print("the below shapes should match")
         # print(f"{ground_truth.shape=}")
