@@ -1,8 +1,10 @@
 import copy
 import time
+from datetime import datetime
 from enum import Enum
 from typing import List
 
+import cv2 as cv
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,8 +14,8 @@ from torchvision import models, transforms
 
 import dhdrnet.util as util
 from dhdrnet.Dataset import HDRDataset, collate_fn
-from dhdrnet.util import DATA_DIR, get_mid_exp
-from image_loader import clip_hdr
+from dhdrnet.image_loader import clip_hdr
+from dhdrnet.util import DATA_DIR, MODEL_DIR, get_mid_exp
 
 DEBUG = False
 
@@ -82,9 +84,20 @@ def main(debug: bool = None):
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=25)
-    torch.save(trained.state_dict(),)
-    # save model and stuff
+
+    epochs = 100
+    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs)
+
+    timestamp = datetime.now().strftime("%m-%d-%R")
+    torch.save(
+        {
+            "epoch": epochs,
+            "model_state_dict": trained.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": criterion,
+        },
+        MODEL_DIR / f"dhdr_{timestamp}.pt",
+    )
 
 
 def train(model, loss_fun, optimizer, scheduler, num_epochs):
@@ -127,9 +140,6 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
 
     model.load_state_dict(best_weights)
     return model
-
-
-import cv2 as cv
 
 
 def fit(dataloaders, model, phase, loss_fun, device, optimizer):
