@@ -85,16 +85,8 @@ def main(debug: bool = None):
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-    epochs = 100
-    steps_per_epoch = 100
-    trained = train(
-        model,
-        criterion,
-        optimizer,
-        exp_lr_scheduler,
-        num_epochs=epochs,
-        steps_per_epoch=steps_per_epoch,
-    )
+    epochs = 10000
+    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs,)
 
     timestamp = datetime.now().strftime("%m-%d-%R")
     torch.save(
@@ -108,7 +100,7 @@ def main(debug: bool = None):
     )
 
 
-def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch=100):
+def train(model, loss_fun, optimizer, scheduler, num_epochs):
     since = time.time()
 
     best_weights = copy.deepcopy(model.state_dict())
@@ -118,18 +110,25 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch=100
         print(f"Epoch {epoch}/{num_epochs - 1}")
         print("-" * 10)
 
+        running_loss = 0
         for phase in Phase:
             if phase == Phase.TRAIN:
                 model.train()  # set to training mode
-                for step in range(steps_per_epoch):
-                    # iterate over data
-                    running_loss = fit(
-                        dataloaders, model, phase, loss_fun, device, optimizer
-                    )
-                    scheduler.step()
             else:
                 model.eval()
+                if (epoch + 1) % 10 == 0:
+                    timestamp = datetime.now().strftime("%m-%d-%R")
+                    checkpoint_name = str(
+                        MODEL_DIR
+                        / "checkpoints"
+                        / f"dhdr_checkpoint_{timestamp}_epoch{epoch+1}.pt",
+                        )
+                    print(f"saving checkpoint: {checkpoint_name}")
+                    torch.save(copy.deepcopy(model.state_dict()), checkpoint_name)
 
+            # iterate over data
+            running_loss = fit(dataloaders, model, phase, loss_fun, device, optimizer)
+            scheduler.step()
             epoch_loss = running_loss / dataset_sizes[phase]
             # epoch_acc = running_correct.double() / dataset_sizes[phase]
 
@@ -140,15 +139,6 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch=100
                 best_loss = epoch_loss
                 best_weights = copy.deepcopy(model.state_dict())
 
-            if epoch % 10 == 0:
-                timestamp = datetime.now().strftime("%m-%d-%R")
-                checkpoint_name = (
-                    MODEL_DIR
-                    / "checkpoints"
-                    / f"dhdr_checkpoint_{timestamp}_epoch{epoch}.pt",
-                )
-                print(f"saving checkpoint: {checkpoint_name}")
-                torch.save(model.state_dict(), checkpoint_name)
 
         print()  # line sep
 
