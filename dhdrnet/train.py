@@ -144,7 +144,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch=100
                 timestamp = datetime.now().strftime("%m-%d-%R")
                 torch.save(
                     model.state_dict(),
-                    MODEL_DIR / "checkpoints" / f"dhdr_checkpoint_{timestamp}.pt",
+                    MODEL_DIR / "checkpoints" / f"dhdr_checkpoint_{timestamp}_epoch{epoch}.pt",
                 )
 
         print()  # line sep
