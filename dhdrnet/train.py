@@ -85,8 +85,16 @@ def main(debug: bool = None):
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-    epochs = 10000
-    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs,)
+    epochs = 100
+    steps_per_epoch = 100
+    trained = train(
+        model,
+        criterion,
+        optimizer,
+        exp_lr_scheduler,
+        num_epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
+    )
 
     timestamp = datetime.now().strftime("%m-%d-%R")
     torch.save(
@@ -122,7 +130,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
                         MODEL_DIR
                         / "checkpoints"
                         / f"dhdr_checkpoint_{timestamp}_epoch{epoch+1}.pt",
-                        )
+                    )
                     print(f"saving checkpoint: {checkpoint_name}")
                     torch.save(copy.deepcopy(model.state_dict()), checkpoint_name)
 
@@ -138,7 +146,6 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
             if phase == Phase.EVAL and epoch_loss > best_loss:
                 best_loss = epoch_loss
                 best_weights = copy.deepcopy(model.state_dict())
-
 
         print()  # line sep
 
@@ -190,8 +197,6 @@ def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
             predicted = cv.imread(str(pred_p))
             fused = torch.tensor(mertens_fuse([mid_exp, predicted]), dtype=torch.float)
 
-            # print(f"{fused.shape=}")
-            # print(f"{type(fused)=}")
             fused_batch.append(fused)
         # last two entries of shape are w,h for a torch.tensor
     centercrop = util.centercrop(fused_batch, ground_truth.shape[2:])

@@ -1,3 +1,2 @@
 upload:
-	upload-proj yorkhome:~/Development/dhdr-remote	
-
+	upload-proj . yorkhome:~/Development/dhdr-remote
