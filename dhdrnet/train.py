@@ -17,6 +17,9 @@ from dhdrnet.Dataset import HDRDataset, collate_fn
 from dhdrnet.image_loader import clip_hdr
 from dhdrnet.util import DATA_DIR, MODEL_DIR, get_mid_exp
 
+from rich.console import Console
+from rich.progress import track
+
 DEBUG = False
 
 
@@ -86,7 +89,7 @@ def main(debug: bool = None):
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     epochs = 100
-    steps_per_epoch = 100
+    steps_per_epoch = 10
     trained = train(
         model,
         criterion,
@@ -108,7 +111,7 @@ def main(debug: bool = None):
     )
 
 
-def train(model, loss_fun, optimizer, scheduler, num_epochs):
+def train(model, loss_fun, optimizer, scheduler, num_epochs, steps_per_epoch):
     since = time.time()
 
     best_weights = copy.deepcopy(model.state_dict())
@@ -118,34 +121,37 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
         print(f"Epoch {epoch}/{num_epochs - 1}")
         print("-" * 10)
 
-        running_loss = 0
-        for phase in Phase:
-            if phase == Phase.TRAIN:
-                model.train()  # set to training mode
-            else:
-                model.eval()
-                if (epoch + 1) % 10 == 0:
-                    timestamp = datetime.now().strftime("%m-%d-%R")
-                    checkpoint_name = str(
-                        MODEL_DIR
-                        / "checkpoints"
-                        / f"dhdr_checkpoint_{timestamp}_epoch{epoch+1}.pt",
-                    )
-                    print(f"saving checkpoint: {checkpoint_name}")
-                    torch.save(copy.deepcopy(model.state_dict()), checkpoint_name)
+        for step in track(range(steps_per_epoch)):
+            running_loss = 0
+            for phase in Phase:
+                if phase == Phase.TRAIN:
+                    model.train()  # set to training mode
+                else:
+                    model.eval()
+                    if (epoch + 1) % 10 == 0:
+                        timestamp = datetime.now().strftime("%m-%d-%R")
+                        checkpoint_name = str(
+                            MODEL_DIR
+                            / "checkpoints"
+                            / f"dhdr_checkpoint_{timestamp}_epoch{epoch+1}.pt",
+                        )
+                        print(f"saving checkpoint: {checkpoint_name}")
+                        torch.save(copy.deepcopy(model.state_dict()), checkpoint_name)
 
-            # iterate over data
-            running_loss = fit(dataloaders, model, phase, loss_fun, device, optimizer)
-            scheduler.step()
-            epoch_loss = running_loss / dataset_sizes[phase]
-            # epoch_acc = running_correct.double() / dataset_sizes[phase]
+                # iterate over data
+                running_loss = fit(
+                    dataloaders, model, phase, loss_fun, device, optimizer
+                )
+                scheduler.step()
+                epoch_loss = running_loss / dataset_sizes[phase]
+                # epoch_acc = running_correct.double() / dataset_sizes[phase]
 
-            print(f"{phase} Loss: {epoch_loss:.4f}")
+                print(f"{phase} Loss: {epoch_loss:.4f}")
 
-            # deep copy model if eval time
-            if phase == Phase.EVAL and epoch_loss > best_loss:
-                best_loss = epoch_loss
-                best_weights = copy.deepcopy(model.state_dict())
+                # deep copy model if eval time
+                if phase == Phase.EVAL and epoch_loss > best_loss:
+                    best_loss = epoch_loss
+                    best_weights = copy.deepcopy(model.state_dict())
 
         print()  # line sep
 

@@ -18,6 +18,7 @@ more-itertools = "^8.2.0"
 pillow = "^7.0.0"
 pylama = "^7.7.1"
 recordclass = "^0.13.2"
+rich = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 jupyterlab = "^2.1.1"
