@@ -75,17 +75,19 @@ class DHDRNet(LightningModule):
         # loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
         loss = 1 - ssim_score
-        return loss, ssim_score, reconstructed_hdr
+        return loss, ssim_score, reconstructed_hdr, ground_truth
 
     def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        loss, ssim_score, _ = self.common_step(batch)
+        loss, ssim_score, *_ = self.common_step(batch)
         logs = {'train_loss': loss, "train_sim": ssim_score}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        loss, ssim_score, reconstructed_hdr = self.common_step(batch)
-        grid = torchvision.utils.make_grid(reconstructed_hdr)
-        self.logger.experiment.add_image('reconstructed_hdr', grid, 0)
+        loss, ssim_score, reconstructed_hdr, ground_truth = self.common_step(batch)
+        grid_rec = torchvision.utils.make_grid(reconstructed_hdr)
+        grid_gt = torchvision.utils.make_grid(ground_truth)
+        self.logger.experiment.add_image('reconstructed_hdr', grid_rec, 0)
+        self.logger.experiment.add_image('ground_truth', grid_gt, 0)
         logs = {"val_loss": loss, "val_ssim": ssim_score}
         return {"val_loss": loss, 'log': logs}
 
@@ -98,7 +100,7 @@ class DHDRNet(LightningModule):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        loss, ssim_score, _ = self.common_step(batch)
+        loss, ssim_score, *_ = self.common_step(batch)
         logs = {"test_loss": loss, "test_ssim": ssim_score}
         return {"test_loss": loss, 'log': logs}
 
