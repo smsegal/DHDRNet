@@ -16,7 +16,6 @@ class HDRDataset(Dataset):
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
-
         self.gt_paths = list(self.gt_dir.iterdir())
         self.transform = transform
 
@@ -43,7 +42,7 @@ class HDRDataset(Dataset):
         mid_exposure_path = [ep for ep in exposure_paths if ep.stem.endswith("0")][0]
         mid_exposure = Image.open(mid_exposure_path)
 
-        if self.transforms:
+        if self.transform:
             gt_image = self.transform(gt_image)
             mid_exposure = self.transform(mid_exposure)
 

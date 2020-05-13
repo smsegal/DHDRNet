@@ -18,12 +18,14 @@ from dhdrnet.image_loader import clip_hdr
 from dhdrnet.util import DATA_DIR, MODEL_DIR, get_mid_exp
 from tqdm import tqdm, trange
 
+from reconstruction import mertens_fuse
+
 DEBUG = False
 
 
 class Phase(Enum):
     TRAIN = "train"
-    EVAL = "val"
+    # EVAL = "val"
 
 
 logger = logging.getLogger("dhdr_train")
@@ -34,24 +36,24 @@ data_transforms = {
             transforms.ToTensor(),
         ]
     ),
-    Phase.EVAL: transforms.Compose(
-        [
-            transforms.CenterCrop((360, 474)),  # min dimensions along DS
-            transforms.ToTensor(),
-        ]
-    ),
+    # Phase.EVAL: transforms.Compose(
+    #     [
+    #         transforms.CenterCrop((360, 474)),  # min dimensions along DS
+    #         transforms.ToTensor(),
+    #     ]
+    # ),
 }
 datasets = {
     split: HDRDataset(
         DATA_DIR / split.value / "merged",
         DATA_DIR / split.value / "processed",
-        transforms=data_transforms[split],
+        transform=data_transforms[split],
     )
     for split in Phase
 }
 batch_sizes = {
     Phase.TRAIN: 4,
-    Phase.EVAL: 8,  # double the batch size for val cause jeremy howard said so
+    # Phase.EVAL: 8,  # double the batch size for val cause jeremy howard said so
 }
 dataloaders = {
     split: torch.utils.data.DataLoader(
@@ -66,8 +68,6 @@ dataloaders = {
 dataset_sizes = {x: len(datasets[x]) for x in Phase}
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
 
 
 def main(debug: bool = None):
@@ -85,7 +85,7 @@ def main(debug: bool = None):
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     epochs = 100
-    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs,)
+    trained = train(model, criterion, optimizer, exp_lr_scheduler, num_epochs=epochs, )
 
     timestamp = datetime.now().strftime("%m-%d-%R")
     torch.save(
@@ -121,7 +121,7 @@ def train(model, loss_fun, optimizer, scheduler, num_epochs):
                         checkpoint_name = str(
                             MODEL_DIR
                             / "checkpoints"
-                            / f"dhdr_checkpoint_{timestamp}_epoch{epoch+1}.pt",
+                            / f"dhdr_checkpoint_{timestamp}_epoch{epoch + 1}.pt",
                         )
                         print(f"saving checkpoint: {checkpoint_name}")
                         torch.save(copy.deepcopy(model.state_dict()), checkpoint_name)

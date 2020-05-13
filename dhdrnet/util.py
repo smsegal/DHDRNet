@@ -16,7 +16,7 @@ class Indexable(Mapping[int, T]):
         super(self, *args, **kwargs)
 
 
-root_env_keys = ["IDE_PROJECT_ROOTS", "DHDR_ROOT"]
+root_env_keys = ("IDE_PROJECT_ROOTS", "DHDR_ROOT")
 
 
 def get_project_root() -> Path:

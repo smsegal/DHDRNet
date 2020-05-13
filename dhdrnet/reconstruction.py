@@ -23,7 +23,8 @@ def get_predicted_exps(exposures, preds):
     preds: shape = [batch_size] <-- one prediction per batch
     """
     shifted = shift_preds(preds)
-    return [exposure[pred] for exposure, pred in zip(exposures, shifted)]
+    predicted = [exposure[pred] for exposure, pred in zip(exposures, shifted)]
+    return predicted
 
 
 def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
