@@ -84,8 +84,8 @@ class DHDRNet(LightningModule):
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:
         loss, ssim_score, reconstructed_hdr, ground_truth = self.common_step(batch)
-        grid_rec = torchvision.utils.make_grid(reconstructed_hdr)
-        grid_gt = torchvision.utils.make_grid(ground_truth)
+        grid_rec = torchvision.utils.make_grid(reconstructed_hdr, normalize=True)
+        grid_gt = torchvision.utils.make_grid(ground_truth, normalize=True)
         self.logger.experiment.add_image('reconstructed_hdr', grid_rec, 0)
         self.logger.experiment.add_image('ground_truth', grid_gt, 0)
         logs = {"val_loss": loss, "val_ssim": ssim_score}
