@@ -72,9 +72,9 @@ class DHDRNet(LightningModule):
         reconstructed_hdr = reconstruct_hdr_from_pred(
             exposure_paths, ground_truth, preds
         ).type_as(mid_exposure)
-        # loss = F.mse_loss(reconstructed_hdr, ground_truth)
+        loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
-        loss = 1 - ssim_score
+        # loss = 1 - ssim_score
         return loss, ssim_score, reconstructed_hdr, ground_truth
 
     def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
