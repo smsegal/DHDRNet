@@ -1,6 +1,7 @@
 from math import ceil, floor
 from typing import List, Union, Dict
 
+import torchvision
 from pytorch_lightning.core.lightning import LightningModule
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms, models
@@ -12,24 +13,23 @@ from pytorch_msssim import ssim, ms_ssim
 
 from dhdrnet.Dataset import HDRDataset, collate_fn
 from dhdrnet.util import DATA_DIR
-from reconstruction import reconstruct_hdr_from_pred
+from reconstruction import reconstruct_hdr_from_pred, clip_hdr
 from dhdrnet.unet_components import *
-
 
 
 class DHDRNet(LightningModule):
     def __init__(self, bilinear=False):
         super(DHDRNet, self).__init__()
         num_classes = 4
-        self.feature_extractor = models.resnet50(pretrained=True)
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
+        self.inner_model = models.squeezenet1_1(pretrained=False, num_classes=4)
+        # for param in self.feature_extractor.parameters():
+        #     param.requires_grad = False
 
-        num_features = self.feature_extractor.fc.in_features
-        self.feature_extractor.fc = nn.Linear(num_features, num_classes)
+        # num_features = self.inner_model.classifier.in_features
+        # self.inner_model.classifier = nn.Linear(num_features, num_classes)
 
     def forward(self, x):
-        x = self.feature_extractor(x)
+        x = self.inner_model(x)
         return x
 
     def prepare_data(self):
@@ -65,27 +65,27 @@ class DHDRNet(LightningModule):
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=1e-3)
 
-    def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
+    def common_step(self, batch):
         exposure_paths, mid_exposure, ground_truth = batch
         outputs = self(mid_exposure)
         _, preds = torch.max(outputs, 1)
         reconstructed_hdr = reconstruct_hdr_from_pred(
             exposure_paths, ground_truth, preds
         ).type_as(mid_exposure)
-        loss = F.mse_loss(reconstructed_hdr, ground_truth)
+        # loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
+        loss = 1 - ssim_score
+        return loss, ssim_score, reconstructed_hdr
+
+    def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
+        loss, ssim_score, _ = self.common_step(batch)
         logs = {'train_loss': loss, "train_sim": ssim_score}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        exposure_paths, mid_exposure, ground_truth = batch
-        outputs = self(mid_exposure)
-        _, preds = torch.max(outputs, 1)
-        reconstructed_hdr = reconstruct_hdr_from_pred(
-            exposure_paths, ground_truth, preds
-        ).type_as(mid_exposure)
-        loss = F.mse_loss(reconstructed_hdr, ground_truth)
-        ssim_score = ssim(reconstructed_hdr, ground_truth)
+        loss, ssim_score, reconstructed_hdr = self.common_step(batch)
+        grid = torchvision.utils.make_grid(reconstructed_hdr)
+        self.logger.experiment.add_image('reconstructed_hdr', grid, 0)
         logs = {"val_loss": loss, "val_ssim": ssim_score}
         return {"val_loss": loss, 'log': logs}
 
@@ -98,14 +98,7 @@ class DHDRNet(LightningModule):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        exposure_paths, mid_exposure, ground_truth = batch
-        outputs = self(mid_exposure)
-        _, preds = torch.max(outputs, 1)
-        reconstructed_hdr = reconstruct_hdr_from_pred(
-            exposure_paths, ground_truth, preds
-        ).type_as(mid_exposure)
-        loss = F.mse_loss(reconstructed_hdr, ground_truth)
-        ssim_score = ssim(reconstructed_hdr, ground_truth)
+        loss, ssim_score, _ = self.common_step(batch)
         logs = {"test_loss": loss, "test_ssim": ssim_score}
         return {"test_loss": loss, 'log': logs}
 
