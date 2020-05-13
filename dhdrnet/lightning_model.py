@@ -78,7 +78,7 @@ class DHDRNet(LightningModule):
         return loss, ssim_score, reconstructed_hdr, ground_truth
 
     def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        loss, ssim_score, _ = self.common_step(batch)
+        loss, ssim_score, *_ = self.common_step(batch)
         logs = {'train_loss': loss, "train_sim": ssim_score}
         return {"loss": loss, "log": logs}
 
