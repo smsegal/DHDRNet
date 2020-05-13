@@ -12,10 +12,6 @@ from dhdrnet.util import (
 
 DATA_DIR = get_project_root() / "data"
 
-def test_version():
-    assert __version__ == "0.1.0"
-
-
 def test_sample_load():
     dataset = HDRDataset(gt_dir=DATA_DIR / "merged", raw_dir=DATA_DIR / "dngs")
     sample_size = 100
@@ -32,11 +28,11 @@ def test_create_train_test_split():
     assert len(files) == len(train) + len(test) + len(val)
 
 
-@pytest.mark.skip(reason="time consuming and not idempotent")
+# @pytest.mark.skip(reason="time consuming and not idempotent")
 def test_split_dataset():
-    create_train_test_split(DATA_DIR)
+    # create_train_test_split(DATA_DIR)
     source_dest_map = split_data(root_dir=get_project_root(), data_dir=DATA_DIR)
     for source, dests in source_dest_map.items():
         source_files = source.iterdir()
         dest_files = flatten([d.iterdir() for d in dests])
-        assert len(list((source_files))) == len(list(dest_files))
+        assert len(list(source_files)) == len(list(dest_files))
