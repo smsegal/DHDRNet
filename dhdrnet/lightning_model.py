@@ -16,19 +16,21 @@ from reconstruction import reconstruct_hdr_from_pred
 from dhdrnet.unet_components import *
 
 
-# parts of network taken from https://github.com/milesial/Pytorch-UNet according to license
 
 class DHDRNet(LightningModule):
     def __init__(self, bilinear=False):
         super(DHDRNet, self).__init__()
         num_classes = 4
-        self.model = models.resnet50(pretrained=True)
-        num_features = self.model.fc.in_features
-        self.model.fc = nn.Linear(num_features, num_classes)
-    def forward(self, x):
-        preds = self.model(x)
-        return preds
+        self.feature_extractor = models.resnet50(pretrained=True)
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
 
+        num_features = self.feature_extractor.fc.in_features
+        self.feature_extractor.fc = nn.Linear(num_features, num_classes)
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        return x
 
     def prepare_data(self):
         transform = transforms.Compose(
@@ -72,7 +74,7 @@ class DHDRNet(LightningModule):
         ).type_as(mid_exposure)
         loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
-        logs = {'train_loss': loss, "train_sim":ssim_score}
+        logs = {'train_loss': loss, "train_sim": ssim_score}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:

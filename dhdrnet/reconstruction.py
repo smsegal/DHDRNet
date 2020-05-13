@@ -29,7 +29,7 @@ def get_predicted_exps(exposures, preds):
 
 def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
     mertens_merger = cv.createMergeMertens()
-    return clip_hdr(mertens_merger.process(images))
+    return mertens_merger.process(images)
 
 
 def shift_preds(preds):
