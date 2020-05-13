@@ -24,11 +24,7 @@ def get_project_root() -> Path:
         if key in os.environ:
             return Path(os.environ[key])
     try:
-        git_root = (
-            check_output(["git", "rev-parse", "--show-toplevel"])
-            .decode("utf-8")
-            .strip()
-        )
+        git_root = check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
         return Path(git_root).absolute()
     except CalledProcessError:
         # not in a git repo
@@ -37,13 +33,17 @@ def get_project_root() -> Path:
 
 
 ROOT_DIR: Path = get_project_root()
-DATA_DIR: Path = Path(
-    str(os.environ["DHDR_DATA_DIR"])
-) if "DHDR_DATA_DIR" in os.environ else ROOT_DIR / "data"
+if "DHDR_DATA_DIR" in os.environ:
+    DATA_DIR = Path(
+        str(os.environ["DHDR_DATA_DIR"])
+    )
+else:
+    DATA_DIR = ROOT_DIR / "data"
 MODEL_DIR: Path = ROOT_DIR / "models"
 
+
 def create_train_test_split(
-    data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
+        data_dir: Path, train_split=0.9, val_split=0.2, dry_run=False
 ):
     files: Set = set((data_dir / "dngs").iterdir())
 
@@ -66,7 +66,7 @@ def create_train_test_split(
 
 
 def split_dataset(
-    root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
+        root_dir: Path = ROOT_DIR, data_dir: Path = DATA_DIR, dry_run: bool = False
 ) -> Dict[Path, List[Path]]:
     ds_splits = ["train", "test", "val"]
     data_subdirs = ["dngs", "merged", "processed"]
@@ -170,8 +170,8 @@ def centercrop(images, shape):
     for im in images:
         w, h = im.shape[:-1]
         cropped = im[
-            ceil((w - minw) / 2) : ceil(w - ((w - minw) / 2)),
-            ceil((h - minh) / 2) : ceil(h - ((h - minh) / 2)),
-        ]
+                  ceil((w - minw) / 2): ceil(w - ((w - minw) / 2)),
+                  ceil((h - minh) / 2): ceil(h - ((h - minh) / 2)),
+                  ]
         all_cropped.append(cropped)
     return all_cropped

@@ -68,9 +68,6 @@ dataset_sizes = {x: len(datasets[x]) for x in Phase}
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
-    mertens_merger = cv.createMergeMertens()
-    return clip_hdr(mertens_merger.process(images))
 
 
 def main(debug: bool = None):

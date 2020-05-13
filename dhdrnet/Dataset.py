@@ -12,13 +12,13 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self, gt_dir: Path, exp_dir: Path, transforms=None,
+        self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
 
         self.gt_paths = list(self.gt_dir.iterdir())
-        self.transforms = transforms
+        self.transform = transform
 
     def __len__(self):
         return len(self.gt_paths)
@@ -44,8 +44,8 @@ class HDRDataset(Dataset):
         mid_exposure = Image.open(mid_exposure_path)
 
         if self.transforms:
-            gt_image = self.transforms(gt_image)
-            mid_exposure = self.transforms(mid_exposure)
+            gt_image = self.transform(gt_image)
+            mid_exposure = self.transform(mid_exposure)
 
         return {
             "exposure_paths": exposure_paths,

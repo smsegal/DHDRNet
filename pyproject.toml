@@ -21,6 +21,7 @@ recordclass = "^0.13.2"
 rich = "^1.0.0"
 tqdm = "^4.46.0"
 pytorch-lightning = "^0.7.5"
+pytorch-msssim = "^0.2.0"
 
 [tool.poetry.dev-dependencies]
 jupyterlab = "^2.1.1"
