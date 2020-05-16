@@ -4,9 +4,12 @@ from collections import defaultdict
 from collections.abc import Iterable as It
 from math import ceil
 from pathlib import Path
-from pprint import pprint
-from subprocess import check_output, CalledProcessError
-from typing import DefaultDict, Dict, Iterator, List, Mapping, Set, TypeVar
+from subprocess import CalledProcessError, check_output
+from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
+
+from PIL import Image
+from torch import Tensor
+from torchvision import transforms
 
 T = TypeVar("T")
 
@@ -24,7 +27,11 @@ def get_project_root() -> Path:
         if key in os.environ:
             return Path(os.environ[key])
     try:
-        git_root = check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+        git_root = (
+            check_output(["git", "rev-parse", "--show-toplevel"])
+            .decode("utf-8")
+            .strip()
+        )
         return Path(git_root).absolute()
     except CalledProcessError:
         # not in a git repo
@@ -34,17 +41,13 @@ def get_project_root() -> Path:
 
 ROOT_DIR: Path = get_project_root()
 if "DHDR_DATA_DIR" in os.environ:
-    DATA_DIR = Path(
-        str(os.environ["DHDR_DATA_DIR"])
-    )
+    DATA_DIR = Path(str(os.environ["DHDR_DATA_DIR"]))
 else:
     DATA_DIR = ROOT_DIR / "data"
 MODEL_DIR: Path = ROOT_DIR / "models"
 
 
-def create_train_test_split(
-        data_dir: Path, train_split=0.9, dry_run=False
-):
+def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
     files: Set = set((data_dir / "dngs").iterdir())
 
     train_size = round(train_split * len(files))
@@ -119,8 +122,72 @@ def centercrop(images, shape):
     for im in images:
         w, h = im.shape[:-1]
         cropped = im[
-                  ceil((w - minw) / 2): ceil(w - ((w - minw) / 2)),
-                  ceil((h - minh) / 2): ceil(h - ((h - minh) / 2)),
-                  ]
+            ceil((w - minw) / 2) : ceil(w - ((w - minw) / 2)),
+            ceil((h - minh) / 2) : ceil(h - ((h - minh) / 2)),
+        ]
         all_cropped.append(cropped)
     return all_cropped
+
+
+def conv_yuv(*images: List[Tensor]) -> Image:
+    converter = YPbPrColorSpace
+
+import torch
+
+
+class ColorSpace(object):
+    """
+    Base class for color spaces.
+    """
+
+    def from_rgb(self, imgs):
+        """
+        Converts an Nx3xWxH tensor in RGB color space to a Nx3xWxH tensor in
+        this color space. All outputs should be in the 0-1 range.
+        """
+        raise NotImplementedError()
+
+    def to_rgb(self, imgs):
+        """
+        Converts an Nx3xWxH tensor in this color space to a Nx3xWxH tensor in
+        RGB color space.
+        """
+        raise NotImplementedError()
+
+class YPbPrColorSpace(ColorSpace):
+    """
+    YPbPr color space. Uses ITU-R BT.601 standard by default.
+    """
+
+    def __init__(self, kr=0.299, kg=0.587, kb=0.114, luma_factor=1, chroma_factor=1):
+        self.kr, self.kg, self.kb = kr, kg, kb
+        self.luma_factor = luma_factor
+        self.chroma_factor = chroma_factor
+
+    def from_rgb(self, imgs):
+        r, g, b = imgs.permute(1, 0, 2, 3)
+
+        y = r * self.kr + g * self.kg + b * self.kb
+        pb = (b - y) / (2 * (1 - self.kb))
+        pr = (r - y) / (2 * (1 - self.kr))
+
+        return torch.stack(
+            [
+                y * self.luma_factor,
+                pb * self.chroma_factor + 0.5,
+                pr * self.chroma_factor + 0.5,
+            ],
+            1,
+        )
+
+    def to_rgb(self, imgs):
+        y_prime, pb_prime, pr_prime = imgs.permute(1, 0, 2, 3)
+        y = y_prime / self.luma_factor
+        pb = (pb_prime - 0.5) / self.chroma_factor
+        pr = (pr_prime - 0.5) / self.chroma_factor
+
+        b = pb * 2 * (1 - self.kb) + y
+        r = pr * 2 * (1 - self.kr) + y
+        g = (y - r * self.kr - b * self.kb) / self.kg
+
+        return torch.stack([r, g, b], 1).clamp(0, 1)

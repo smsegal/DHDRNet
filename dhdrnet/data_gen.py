@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Collection
 
 import dhdrnet.image_loader as il
-from dhdrnet.image_loader import FuseMethod
+from cv_fuse import FuseMethod
 from dhdrnet.util import get_project_root
 
 IS_SCRIPT = False
