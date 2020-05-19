@@ -215,6 +215,3 @@ def _write_tiff_with_metadata(in_file: Path, out_file: Path):
         ["dcraw"] + shlex.split('-w -W -H 0 -q 3 -T "{0}"'.format(str(in_file)))
     )
 
-
-if __name__ == "__main__":
-    main()
