@@ -16,12 +16,12 @@ from dhdrnet.util import DATA_DIR
 
 
 class DHDRNet(LightningModule):
-    def __init__(self, bilinear=False):
+    def __init__(self):
         super(DHDRNet, self).__init__()
         self.colour_space = YPbPrColorSpace()
 
         num_classes = 4
-        self.inner_model = models.squeezenet1_1(pretrained=False, num_classes=4)
+        self.inner_model = models.squeezenet1_1(pretrained=False, num_classes=num_classes)
         # for param in self.feature_extractor.parameters():
         #     param.requires_grad = False
 
@@ -52,14 +52,14 @@ class DHDRNet(LightningModule):
         train_val_ratio = 0.8
         train_len = ceil(train_val_ratio * len(HDRData))
         val_len = floor((1 - train_val_ratio) * len(HDRData))
-        train_data, val_data = random_split(HDRData, lengths=[train_len, val_len])
+        train_data, val_data = random_split(HDRData, lengths=(train_len, val_len))
         self.train_data = train_data
         self.val_data = val_data
         self.test_data = test_data
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.train_data, batch_size=4, collate_fn=collate_fn, num_workers=8
+            self.train_data, batch_size=16, collate_fn=collate_fn, num_workers=8
         )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:

@@ -25,7 +25,9 @@ def get_predicted_exps(exposures, preds):
 
 def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
     mertens_merger = cv.createMergeMertens()
-    return mertens_merger.process(images)
+    merged = mertens_merger.process(images)
+    merged_rgb = merged[:,:,[2,1,0]] #colour channels are BGR for some stupid reason in OpenCV
+    return merged_rgb
 
 
 def shift_preds(preds):
@@ -33,30 +35,19 @@ def shift_preds(preds):
     return preds
 
 
-def Reconstruction(fuse_func):
-    def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
-        with torch.no_grad():
-            selected_exposures = get_predicted_exps(exposure_paths, preds)
-            fused_batch = []
-            for pred_p in selected_exposures:
-                mid_exp_p = get_mid_exp(pred_p)
-                mid_exp = cv.imread(str(mid_exp_p))
-                predicted = cv.imread(str(pred_p))
-                fused = torch.tensor(fuse_func([mid_exp, predicted]), dtype=torch.float)
+def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
+    with torch.no_grad():
+        selected_exposures = get_predicted_exps(exposure_paths, preds)
+        fused_batch = []
+        for pred_p in selected_exposures:
+            mid_exp_p = get_mid_exp(pred_p)
+            mid_exp = cv.imread(str(mid_exp_p))
+            predicted = cv.imread(str(pred_p))
+            fused = torch.tensor(mertens_fuse([mid_exp, predicted]), dtype=torch.float)
 
-                fused_batch.append(fused)
-            # last two entries of shape are w,h for a torch.tensor
-        centercrop = util.centercrop(fused_batch, ground_truth.shape[2:])
-        reconstruction = torch.stack(centercrop).permute(0, 3, 1, 2)
-        reconstruction.requires_grad_()
-        return reconstruction
-
-    return reconstruct_hdr_from_pred
-
-
-def test_all_fuse(fuse_funcs, raw_images):
-    all_ev_steps = range(5, 10)
-    for ff, ev_steps, (raw, gt) in product(fuse_funcs, all_ev_steps, zip(raw_images, gt_images)):
-        exposures = get_multi_exposures(raw, ev_steps)
-        exp_choices = exposures[np.random.choice(range(len(exposures)), 2)]
-        fused = ff(exp_choices)
+            fused_batch.append(fused)
+        # last two entries of shape are w,h for a torch.tensor
+    centercrop = util.centercrop(fused_batch, ground_truth.shape[2:])
+    reconstruction = torch.stack(centercrop).permute(0, 3, 1, 2)
+    reconstruction.requires_grad_()
+    return reconstruction
