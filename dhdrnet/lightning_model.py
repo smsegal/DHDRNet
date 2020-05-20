@@ -83,10 +83,10 @@ class DHDRNet(LightningModule):
             exposure_paths, ground_truth, preds
         ).type_as(mid_exposure)
 
-        rc_yuv, gt_yuv = (
-            self.colour_space.from_rgb(im_batch)
-            for im_batch in [reconstructed_hdr, ground_truth]
-        )
+        # rc_yuv, gt_yuv = (
+        #     self.colour_space.from_rgb(im_batch)
+        #     for im_batch in [reconstructed_hdr, ground_truth]
+        # )
 
         loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
@@ -95,7 +95,7 @@ class DHDRNet(LightningModule):
 
     def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
         loss, ssim_score, *_ = self.common_step(batch)
-        logs = {"train_loss": loss, "train_sim": ssim_score}
+        logs = {"train_loss": loss, "train_ssim": ssim_score}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:

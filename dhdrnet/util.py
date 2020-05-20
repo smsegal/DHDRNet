@@ -130,7 +130,7 @@ def centercrop(images, shape):
     return all_cropped
 
 
-# compute all fusion steps with different EVsselected params --- grid search essentially
+# compute all fusion steps with different EVs -- grid search essentially
 def get_multi_exposures(raw, ev_steps):
     exposures = []
     img = Image.open(raw)
