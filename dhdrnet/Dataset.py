@@ -52,9 +52,9 @@ class HDRDataset(Dataset):
             "ground_truth": gt_image,
         }
 
-
-def collate_fn(batch):
-    exposure_paths = [b["exposure_paths"] for b in batch]
-    mid_exposure = torch.stack([b["mid_exposure"] for b in batch])
-    ground_truth = torch.stack([b["ground_truth"] for b in batch])
-    return exposure_paths, mid_exposure, ground_truth
+    @staticmethod
+    def collate_fn(batch):
+        exposure_paths = [b["exposure_paths"] for b in batch]
+        mid_exposure = torch.stack([b["mid_exposure"] for b in batch])
+        ground_truth = torch.stack([b["ground_truth"] for b in batch])
+        return exposure_paths, mid_exposure, ground_truth

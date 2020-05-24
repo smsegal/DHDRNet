@@ -8,7 +8,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms, models
 
-from dhdrnet.Dataset import HDRDataset, collate_fn
+from dhdrnet.Dataset import HDRDataset
 from dhdrnet.colour_utils import YPbPrColorSpace
 from dhdrnet.reconstruction import reconstruct_hdr_from_pred
 from dhdrnet.unet_components import *
@@ -21,7 +21,9 @@ class DHDRNet(LightningModule):
         self.colour_space = YPbPrColorSpace()
 
         num_classes = 4
-        self.inner_model = models.squeezenet1_1(pretrained=False, num_classes=num_classes)
+        self.inner_model = models.squeezenet1_1(
+            pretrained=False, num_classes=num_classes
+        )
         # for param in self.feature_extractor.parameters():
         #     param.requires_grad = False
 
@@ -59,17 +61,23 @@ class DHDRNet(LightningModule):
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.train_data, batch_size=16, collate_fn=collate_fn, num_workers=8
+            self.train_data,
+            batch_size=16,
+            collate_fn=HDRDataset.collate_fn,
+            num_workers=8,
         )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.val_data, batch_size=8, collate_fn=collate_fn, num_workers=8
+            self.val_data, batch_size=8, collate_fn=HDRDataset.collate_fn, num_workers=8
         )
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.test_data, batch_size=8, collate_fn=collate_fn, num_workers=8
+            self.test_data,
+            batch_size=8,
+            collate_fn=HDRDataset.collate_fn,
+            num_workers=8,
         )
 
     def configure_optimizers(self):
@@ -108,7 +116,7 @@ class DHDRNet(LightningModule):
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-            self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
+        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
     ) -> Dict[str, Dict[str, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
@@ -120,7 +128,7 @@ class DHDRNet(LightningModule):
         return {"test_loss": loss, "log": logs}
 
     def test_epoch_end(
-            self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
+        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
     ) -> Dict[str, Dict[str, Tensor]]:
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
         tensorboard_logs = {"test_loss": avg_loss}
