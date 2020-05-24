@@ -2,11 +2,15 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
+from itertools import product
 from math import ceil
 from pathlib import Path
-from pprint import pprint
-from subprocess import check_output, CalledProcessError
-from typing import DefaultDict, Dict, Iterator, List, Mapping, Set, TypeVar
+from subprocess import CalledProcessError, check_output
+from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
+
+import colour_hdri as ch
+import numpy as np
+from PIL import Image
 
 T = TypeVar("T")
 
@@ -24,7 +28,11 @@ def get_project_root() -> Path:
         if key in os.environ:
             return Path(os.environ[key])
     try:
-        git_root = check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+        git_root = (
+            check_output(["git", "rev-parse", "--show-toplevel"])
+                .decode("utf-8")
+                .strip()
+        )
         return Path(git_root).absolute()
     except CalledProcessError:
         # not in a git repo
@@ -34,17 +42,13 @@ def get_project_root() -> Path:
 
 ROOT_DIR: Path = get_project_root()
 if "DHDR_DATA_DIR" in os.environ:
-    DATA_DIR = Path(
-        str(os.environ["DHDR_DATA_DIR"])
-    )
+    DATA_DIR = Path(str(os.environ["DHDR_DATA_DIR"]))
 else:
     DATA_DIR = ROOT_DIR / "data"
 MODEL_DIR: Path = ROOT_DIR / "models"
 
 
-def create_train_test_split(
-        data_dir: Path, train_split=0.9, dry_run=False
-):
+def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
     files: Set = set((data_dir / "dngs").iterdir())
 
     train_size = round(train_split * len(files))
@@ -124,3 +128,16 @@ def centercrop(images, shape):
                   ]
         all_cropped.append(cropped)
     return all_cropped
+
+
+def compute_metadata(ev):
+    f = 1
+    iso = 100
+    exposure_time = (f ** 2) / (2 ** ev)
+    metadata = ch.Metadata(f_number=f, iso=iso, exposure_time=exposure_time)
+    return metadata
+
+
+def norm_zero_one(a):
+    min_a = np.min(a)
+    return (a - min_a) / (np.max(a) - min_a)

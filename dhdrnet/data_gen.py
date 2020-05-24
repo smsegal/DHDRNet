@@ -1,12 +1,18 @@
-#!/usr/bin/env python
-
 import argparse
+import json
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from itertools import product
 from pathlib import Path
-from typing import Callable, Collection
+from typing import Callable, Collection, List
+
+import colour as co
+import numpy as np
 
 import dhdrnet.image_loader as il
-from dhdrnet.image_loader import FuseMethod
+from dhdrnet.cv_fuse import FuseMethod
+from dhdrnet.image_loader import gen_multi_exposures
+from dhdrnet.reconstruction import reconstruction_stats
 from dhdrnet.util import get_project_root
 
 IS_SCRIPT = False
@@ -16,13 +22,12 @@ DATA_DIR = get_project_root() / "data"
 def main(in_dir: Path, out_dir: Path, fuse_method: FuseMethod):
     fuse_fun = partial(il.cv_fuse, method=fuse_method, out_dir=out_dir)
     out_dir.mkdir(exist_ok=True)
-    print(
-        gen(
-            image_paths=in_dir.iterdir(),
-            processed_dir=out_dir.parent / "processed",
-            fuse_fun=fuse_fun,
-        )
+    processed_paths = gen(
+        image_paths=in_dir.iterdir(),
+        processed_dir=out_dir.parent / "processed",
+        fuse_fun=fuse_fun,
     )
+    print(processed_paths)
 
 
 def gen(
@@ -33,6 +38,7 @@ def gen(
     image_paths = list(image_paths)
 
     print(f"Generating multi exposure files in {processed_dir} (Skipping existing)")
+
     processed_dir.mkdir(exist_ok=True)
     multi_exposure_paths = list(processed_dir.iterdir())
     if len(multi_exposure_paths) == 0:
@@ -41,6 +47,55 @@ def gen(
     grouped_ldr_paths = list(il.multi_exp_paths(image_paths, processed_dir))
     print("Generating merged files")
     return list(il.parallel_cv_fused(fuse_fun, grouped_ldr_paths))
+
+
+def gen_all_fuse_options(
+    fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
+):
+    all_ev_steps = [5]  # range(5, 10)
+    sorted_raw = sorted(raw_images, key=lambda p: p.stem)
+    sorted_gt = sorted(gt_images, key=lambda p: p.stem)
+    ev_max = [4, 5, 6, 7]
+    all_combinations = list(
+        product(fuse_funcs, ev_max, all_ev_steps, zip(sorted_raw, sorted_gt))
+    )
+    with ThreadPoolExecutor(max_workers=11) as executor:
+        results = executor.map(lambda a: fuse_exposures(out_dir, *a), all_combinations)
+    return list(results)
+    # opt_log = {k: v for k, v in results}
+
+    # return opt_log
+
+
+def fuse_exposures(out_dir, fuse_func, ev_max, ev_steps, raw_gt):
+    raw, gt = raw_gt
+    ev_range = list(np.linspace(-ev_max, ev_max, ev_steps))
+    exposures = gen_multi_exposures(raw, *ev_range)
+    mid_exp = exposures.pop(len(exposures) // 2)
+    ev_range.remove(0)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logs = []
+    for ev, exp in zip(ev_range, exposures):
+        dest = out_dir / f"max_ev{ev_max}" / f"{raw.stem}_ev{ev}.png"
+        if dest.exists():  # don't recompute
+            continue
+
+        fused = fuse_func([mid_exp, exp])
+
+        # save the results to disk
+        co.write_image(fused, dest)
+
+        # compute stats
+        # mse, ssim, ms_ssim = reconstruction_stats(fused, co.read_image(gt))
+        # logs.append({ev: {"mse": mse, "ssim": ssim, "ms_ssim": ms_ssim,}})
+
+    return raw.stem
+
+
+def write_log(dest, opt_log):
+    with open(f"{dest}.json", "w") as f:
+        json.dump(opt_log, f)
 
 
 if __name__ == "__main__":

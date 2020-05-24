@@ -1,20 +1,13 @@
-from enum import Enum
 from typing import List
 
 import cv2 as cv
 import numpy as np
 import torch
+from pytorch_msssim import ssim, ms_ssim
+from torch.nn import functional as F
 
 from dhdrnet import util
 from dhdrnet.util import get_mid_exp
-
-FuseMethod = Enum("FuseMethod", "Debevec Robertson Mertens All")
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-def clip_hdr(fused):
-    return np.clip(fused * 255, 0, 255).astype("uint8")
 
 
 def get_predicted_exps(exposures, preds):
@@ -29,12 +22,25 @@ def get_predicted_exps(exposures, preds):
 
 def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
     mertens_merger = cv.createMergeMertens()
-    return mertens_merger.process(images)
+    merged = mertens_merger.process(images)
+
+    # colour channels are BGR for some stupid reason in OpenCV
+    merged_rgb = merged  # [:, :, [2, 1, 0]]
+    return merged_rgb
 
 
 def shift_preds(preds):
     preds[preds >= 2] += 1
     return preds
+
+
+def reconstruction_stats(reconstructed, ground_truth):
+    reconstructed_t = torch.tensor(reconstructed).permute(2, 0, 1)[None, :]
+    ground_truth_t = torch.tensor(ground_truth).permute(2, 0, 1)[None, :]
+    mse = F.mse_loss(reconstructed_t, ground_truth_t)
+    ssim_score = ssim(reconstructed_t, ground_truth_t)
+    ms_ssim_score = ms_ssim(reconstructed_t, ground_truth_t)
+    return float(mse), float(ssim_score), float(ms_ssim_score)
 
 
 def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
