@@ -3,7 +3,7 @@ import shlex
 import subprocess
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial, singledispatch
+from functools import lru_cache, partial, singledispatch
 from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
@@ -19,9 +19,8 @@ from colour_hdri import (
     camera_response_functions_Debevec1997,
     image_stack_to_radiance_image,
 )
-from deprecated import deprecated
 
-from cv_fuse import FuseMethod
+from dhdrnet.cv_fuse import FuseMethod
 
 DATA_DIR = Path("../data").resolve()
 
@@ -76,22 +75,6 @@ def _(path: Path) -> Mapping[str, Collection[Path]]:
     return group_ldr_paths(image_paths)
 
 
-@deprecated(reason="use get_exposures instead, works with dataset folder structure")
-def multi_exp_paths(
-    raw_paths: Collection[Path], processed_path: Path
-) -> Iterator[Collection[Path]]:
-    for path in raw_paths:
-        yield multi_exp_path(path, processed_path)
-
-
-@deprecated
-def multi_exp_path(raw_path, processed_path):
-    name = raw_path.name.split(".")[0]
-    exp_paths = list(processed_path.glob(f"{name}*"))
-    if len(exp_paths):
-        return sorted(exp_paths, key=lambda p: int(p.name.split(".")[1]))
-
-
 def get_exposures(exp_path: Path, img_path: Path):
     file_name_no_ext = img_path.stem
     exp_paths = exp_path.glob(f"{file_name_no_ext}*")
@@ -116,20 +99,15 @@ def read_hdr(path: Path) -> np.ndarray:
     return image.read_data()
 
 
-def gen_multi_exposure(
-    image_dict: Mapping[str, np.ndarray]
-) -> Mapping[str, Collection[np.ndarray]]:
-    multi_exposure: Mapping[str, List] = dict.fromkeys(image_dict, [])
-
-    for k, img in image_dict.items():
-        # image_data = img.read_data()
-        # metadata = img.read_metadata()
-        for exposure in np.linspace(-4, 4, 5):
-            multi_exposure[k].append(
-                (img.metadata, ch.adjust_exposure(img.data, exposure))
-            )
-
-    return multi_exposure
+def gen_multi_exposures(
+    img_path: Collection[Path], *exposure_values
+) -> Collection[np.ndarray]:
+    img_loaded = co.read_image(img_path)
+    exposures = [
+        (255 * ch.adjust_exposure(img_loaded, exposure)).astype(int)
+        for exposure in exposure_values
+    ]
+    return exposures
 
 
 def norm_uint8(img: np.ndarray) -> np.ndarray:
@@ -179,39 +157,3 @@ def parallel_write_multi_exp(
 def parallel_cv_fused(fuse_fun: Callable, grouped_paths: Mapping) -> List[Path]:
     with ProcessPoolExecutor(max_workers=25) as executor:
         return list(executor.map(fuse_fun, grouped_paths))
-
-
-def cv_fuse(
-    images: Collection[Path], method: FuseMethod, out_dir: Path
-) -> Collection[Path]:
-    if method == FuseMethod.All:
-        return [
-            _method_map[fm](images, out_dir)
-            for fm in FuseMethod
-            if fm != FuseMethod.All
-        ]
-    else:
-        return [_method_map[method](images, out_dir)]
-
-
-def merge_all_test(merge_exp_paths):
-    merged = []
-    for name, exps in merge_exp_paths.items():
-        exp_paths = [e[2] for e in exps]
-        merged.append(
-            fuse_func(exp_paths)
-            for fuse_func in (debevec_fuse, robertson_fuse, mertens_fuse)
-        )
-    return merged
-
-
-def clip_hdr(fused: np.ndarray) -> np.ndarray:
-    return np.clip(fused * 255, 0, 255).astype("uint8")
-
-
-def _write_tiff_with_metadata(in_file: Path, out_file: Path):
-    logging.info(f"Converting {str(in_file)} to Tiff")
-    subprocess.call(
-        ["dcraw"] + shlex.split('-w -W -H 0 -q 3 -T "{0}"'.format(str(in_file)))
-    )
-

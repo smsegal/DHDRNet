@@ -130,30 +130,6 @@ def centercrop(images, shape):
     return all_cropped
 
 
-# compute all fusion steps with different EVs -- grid search essentially
-def get_multi_exposures(raw, ev_steps):
-    exposures = []
-    img = Image.open(raw)
-    for exposure in ev_steps:
-        ch.adjust_exposure(img.data, exposure)
-    return exposures
-
-
-def gen_all_fuse(
-        fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
-):
-    all_ev_steps = range(5, 10)
-    all_combinations = product(fuse_funcs, all_ev_steps, zip(raw_images, gt_images))
-    raw: Path
-    gt: Path
-    for ff, ev_steps, (raw, gt) in all_combinations:
-        exposures = get_multi_exposures(raw, ev_steps)
-        exp_choices = exposures[np.random.choice(range(len(exposures)), 2)]
-        fused: Image = ff(exp_choices)
-        # save the results to disk
-        fused.save(out_dir / f"{raw.stem}.png")
-
-
 def compute_metadata(ev):
     f = 1
     iso = 100
