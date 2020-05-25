@@ -1,6 +1,8 @@
-from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from itertools import islice
 from typing import List
 
+import colour as co
 import cv2 as cv
 import numpy as np
 import torch
@@ -34,17 +36,29 @@ def shift_preds(preds):
     preds[preds >= 2] += 1
     return preds
 
-import colour as co
+
 def stats_for_dir(processed_dir, gt_dir):
-    logs = defaultdict(dict)
-    for gt in gt_dir.iterdir():
-        gt_stem = gt.stem
-        gt_img = co.read_image(gt)
-        for ev_folder in processed_dir.iterdir():
-            ev_range = ev_folder.name.split("max_ev")[-1]
-            ev_images = ev_folder.glob(f"{gt_stem}*").iterdir()
-            mse, ssim, ms_ssim = [reconstruction_stats(ev_image, gt_img) for ev_image in ev_images]
-            logs[gt_stem][ev_range] = {"mse": mse, "ssim": ssim, "ms_ssim": ms_ssim}
+    logs = dict()
+    with ThreadPoolExecutor() as executor:
+        for gt in gt_dir.iterdir():
+            future = executor.submit(ev_stats, gt, processed_dir)
+            logs[gt.stem] = future.result()
+    return logs
+
+
+def ev_stats(gt, processed_dir):
+    logs = dict()
+    gt_stem = gt.stem
+    gt_img = co.read_image(gt)
+    for ev_folder in processed_dir.iterdir():
+        ev_range = ev_folder.name.split("max_ev")[-1]
+        ev_images = ev_folder.glob(f"{gt_stem}*")
+        logs[ev_range] = {
+            ev_image.stem.split("_ev")[-1]: reconstruction_stats(
+                co.read_image(ev_image), gt_img
+            )
+            for ev_image in ev_images
+        }
     return logs
 
 
@@ -54,7 +68,11 @@ def reconstruction_stats(reconstructed, ground_truth):
     mse = F.mse_loss(reconstructed_t, ground_truth_t)
     ssim_score = ssim(reconstructed_t, ground_truth_t)
     ms_ssim_score = ms_ssim(reconstructed_t, ground_truth_t)
-    return float(mse), float(ssim_score), float(ms_ssim_score)
+    return {
+        "mse": float(mse),
+        "ssim": float(ssim_score),
+        "ms_ssim": float(ms_ssim_score),
+    }
 
 
 def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
