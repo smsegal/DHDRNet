@@ -1,9 +1,10 @@
+from collections import defaultdict
 from typing import List
 
 import cv2 as cv
 import numpy as np
 import torch
-from pytorch_msssim import ssim, ms_ssim
+from pytorch_msssim import ms_ssim, ssim
 from torch.nn import functional as F
 
 from dhdrnet import util
@@ -32,6 +33,19 @@ def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
 def shift_preds(preds):
     preds[preds >= 2] += 1
     return preds
+
+import colour as co
+def stats_for_dir(processed_dir, gt_dir):
+    logs = defaultdict(dict)
+    for gt in gt_dir.iterdir():
+        gt_stem = gt.stem
+        gt_img = co.read_image(gt)
+        for ev_folder in processed_dir.iterdir():
+            ev_range = ev_folder.name.split("max_ev")[-1]
+            ev_images = ev_folder.glob(f"{gt_stem}*").iterdir()
+            mse, ssim, ms_ssim = [reconstruction_stats(ev_image, gt_img) for ev_image in ev_images]
+            logs[gt_stem][ev_range] = {"mse": mse, "ssim": ssim, "ms_ssim": ms_ssim}
+    return logs
 
 
 def reconstruction_stats(reconstructed, ground_truth):
