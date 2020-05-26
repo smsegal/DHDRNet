@@ -1,3 +1,4 @@
+import csv
 from concurrent.futures import ThreadPoolExecutor
 from itertools import islice
 from typing import List
@@ -38,28 +39,49 @@ def shift_preds(preds):
 
 
 def stats_for_dir(processed_dir, gt_dir):
-    logs = dict()
+    logs = []
     with ThreadPoolExecutor() as executor:
         for gt in gt_dir.iterdir():
             future = executor.submit(ev_stats, gt, processed_dir)
-            logs[gt.stem] = future.result()
+            log = future.result()
+            write_csv(log, processed_dir / "fusion_records.csv")
+            logs.append(log)
     return logs
 
 
 def ev_stats(gt, processed_dir):
-    logs = dict()
+    logs = {"name": gt.stem}
     gt_stem = gt.stem
     gt_img = co.read_image(gt)
     for ev_folder in processed_dir.iterdir():
         ev_range = ev_folder.name.split("max_ev")[-1]
         ev_images = ev_folder.glob(f"{gt_stem}*")
-        logs[ev_range] = {
-            ev_image.stem.split("_ev")[-1]: reconstruction_stats(
-                co.read_image(ev_image), gt_img
+
+        for ev_image in ev_images:
+            current_ev = ev_image.stem.split("_ev")[-1]
+            loaded_image = co.read_image(ev_image)
+            mse, ssim, ms_ssim = reconstruction_stats(loaded_image, gt_img)
+            logs.update(
+                {
+                    f"mse_{current_ev}": mse,
+                    f"ssim_{current_ev}": ssim,
+                    f"ms_ssim_{current_ev}": ms_ssim,
+                }
             )
-            for ev_image in ev_images
-        }
+
     return logs
+
+
+def write_csv(data, out):
+    first_write = False
+    if (not out.exists()) or out.stat().st_size == 0:
+        out.touch()
+        first_write = True
+    with out.open(mode="a") as f:
+        writer = csv.DictWriter(f, fieldnames=data.keys())
+        if first_write:
+            writer.writeheader()
+        writer.writerow(data)
 
 
 def reconstruction_stats(reconstructed, ground_truth):
@@ -68,11 +90,7 @@ def reconstruction_stats(reconstructed, ground_truth):
     mse = F.mse_loss(reconstructed_t, ground_truth_t)
     ssim_score = ssim(reconstructed_t, ground_truth_t)
     ms_ssim_score = ms_ssim(reconstructed_t, ground_truth_t)
-    return {
-        "mse": float(mse),
-        "ssim": float(ssim_score),
-        "ms_ssim": float(ms_ssim_score),
-    }
+    return float(mse), float(ssim_score), float(ms_ssim_score)
 
 
 def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
