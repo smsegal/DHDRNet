@@ -1,15 +1,23 @@
+import argparse
 import json
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from itertools import product
+from concurrent.futures import ThreadPoolExecutor
+from itertools import combinations, product
 from pathlib import Path
 from typing import Callable, Collection, List
 
 import colour as co
 import numpy as np
+from tqdm import tqdm
 
 import dhdrnet.image_loader as il
 from dhdrnet.image_loader import gen_multi_exposures
-from dhdrnet.reconstruction import mertens_fuse
+from dhdrnet.reconstruction import (
+    append_csv,
+    find_remaining,
+    mertens_fuse,
+    read_stats_from_file,
+    reconstruction_stats,
+)
 from dhdrnet.util import get_project_root
 
 DATA_DIR = get_project_root() / "data"
@@ -40,6 +48,49 @@ def gen(
     grouped_ldr_paths = list(il.multi_exp_paths(image_paths, processed_dir))
     print("Generating merged files")
     return list(il.parallel_cv_fused(fuse_fun, grouped_ldr_paths))
+
+
+def gen_optimal_pairs(fuse_func, raw_dir, gt_dir, remaining, out_dir, logname):
+    # raws = [raw_dir / f"{entry}.dng" for entry in remaining]
+    # gts = [gt_dir / f"{entry}.png" for entry in remaining]
+    raw_gt = [
+        (raw_dir / f"{entry}.dng", gt_dir / f"{entry}.png") for entry in remaining
+    ]
+    ev_max = [4, 5, 6, 7]
+    exp_img_combos = list(product(ev_max, raw_gt))
+    with ThreadPoolExecutor() as executor:
+        for ev_max, (raw, gt) in tqdm(exp_img_combos):
+            future = executor.submit(
+                optimal_fusion_stats, fuse_func, ev_max, raw, gt, out_dir
+            )
+            records = future.result()
+            append_csv(records, out_dir / logname)
+
+
+def optimal_fusion_stats(fuse_func, ev_max, raw, gt, out_dir):
+    logs = {"name": gt.stem}
+    gt_img = co.read_image(gt)
+
+    ev_range = np.linspace(-ev_max, ev_max, 5)
+    exposures = gen_multi_exposures(raw, *ev_range)
+
+    ev_exposures = zip(ev_range, exposures)
+    for (ev_a, a), (ev_b, b) in combinations(ev_exposures, 2):
+        if ev_a == ev_b:
+            continue
+        fused_img = fuse_func([a, b])
+        mse, ssim, ms_ssim = reconstruction_stats(fused_img, gt_img)
+        logs.update(
+            {
+                f"mse_[{ev_a}][{ev_b}]": mse,
+                f"ssim_[{ev_a}][{ev_b}]": ssim,
+                f"ms_ssim_[{ev_a}][{ev_b}]": ms_ssim,
+            }
+        )
+        co.write_image(
+            fused_img, out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png", bit_depth="uint8"
+        )
+    return logs
 
 
 def gen_all_fuse_options(
@@ -85,7 +136,40 @@ def write_log(dest, opt_log):
 
 
 if __name__ == "__main__":
-    main()
+    co.utilities.filter_warnings()
+
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    parser.add_argument("raw_dir", help="location of raw files")
+    parser.add_argument("gt_dir", help="location of ground truth (merged) files")
+    parser.add_argument("--out-dir", "-o", help="where to save the processed files")
+    parser.add_argument("--log-name", "-l", help="log to record stats in")
+
+    group.add_argument(
+        "--gen-opt", "-go", help="generate with baseline EV0", action="store_true"
+    )
+    group.add_argument(
+        "--gen-baseline", "-gb", help="generate with baseline EV0", action="store_true"
+    )
+
+    args = parser.parse_args()
+    if args.gen_opt:
+        out_dir = Path(args.out_dir)
+        out_dir.mkdir(exist_ok=True)
+        raw_dir = Path(args.raw_dir)
+        gt_dir = Path(args.gt_dir)
+        logname = args.log_name
+        if (out_dir / logname).exists():
+            print("existing records found, excluding existing records from computation")
+            stats_file = read_stats_from_file(out_dir / logname)
+            remaining = find_remaining(stats_file, gt_dir)
+        else:
+            remaining = [gt.stem for gt in gt_dir.iterdir()]
+
+        gen_optimal_pairs(
+            mertens_fuse, raw_dir, gt_dir, remaining, out_dir, args.log_name
+        )
+
 # if __name__ == "__main__":
 #     IS_SCRIPT = True
 #     parser = argparse.ArgumentParser(

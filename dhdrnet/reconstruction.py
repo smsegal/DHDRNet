@@ -42,7 +42,6 @@ def shift_preds(preds):
 
 
 def stats_for_dir(processed_dir, gt_dir, gt_names, logname):
-    logs = []
     with ThreadPoolExecutor() as executor:
         for gt in tqdm(gt_names):
             future = executor.submit(ev_stats, gt_dir, gt, processed_dir)
