@@ -53,9 +53,6 @@ def gen_all_fuse_options(
         product(fuse_funcs, ev_max, all_ev_steps, zip(sorted_raw, sorted_gt))
     )
     with ThreadPoolExecutor(max_workers=None) as executor:
-        # results = executor.map(
-        #     lambda a: fuse_exposures(out_dir, *a), all_combinations, chunksize=10
-        # )
         for a in all_combinations:
             future = executor.submit(fuse_exposures, out_dir, *a)
             print(f"computing: {future.result()}")
@@ -78,10 +75,6 @@ def fuse_exposures(out_dir, fuse_func, ev_max, ev_steps, raw_gt):
 
         # save the results to disk
         co.write_image(fused, dest)
-
-        # compute stats
-        # mse, ssim, ms_ssim = reconstruction_stats(fused, co.read_image(gt))
-        # logs.append({ev: {"mse": mse, "ssim": ssim, "ms_ssim": ms_ssim,}})
 
     return raw.stem
 
