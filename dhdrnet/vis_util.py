@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from dhdrnet import image_loader
-from more_itertools import interleave
+from more_itertools import interleave, flatten
 from mpl_toolkits.axes_grid1 import ImageGrid
+
+from dhdrnet import image_loader
 
 
 def show_image_pair(im1: np.ndarray, im2: np.ndarray):
@@ -50,3 +51,36 @@ def view_data_sample(dataset, idx=None):
     )
     for ax, im in zip(exp_grid, sample["exposures"]):
         ax.imshow(im)
+
+
+def get_pred_dist(stats_df, categories, type, save_plots=False):
+    grouped = dict()
+    for cat, ev_stops in categories.items():
+        selected_cols = list(flatten([[c for c in stats_df.columns if c.endswith(f"_{ev}")] for ev in ev_stops]))
+        grouped[cat] = stats_df.loc[:, ["name", *selected_cols]]
+
+    for ev, stats in grouped.items():
+        type_stats = stats.loc[
+                     :, ["name", *[c for c in stats.columns if c.startswith(type)]]
+                     ]
+        type_stats = type_stats.rename(lambda c: c.split("_")[-1], axis="columns")
+        if "ssim" in type:
+            type_stats[f"optimal_{type}"] = (
+                type_stats.loc[:, f"-{ev}.0":f"{ev}.0"].idxmax(axis=1).apply(float)
+            )
+        else:
+            type_stats[f"optimal_{type}"] = (
+                type_stats.loc[:, f"-{ev}.0":f"{ev}.0"].idxmin(axis=1).apply(float)
+            )
+
+        plt.figure()
+        ax = type_stats[f"optimal_{type}"].value_counts(sort=False, normalize=True).plot(
+            kind="bar", title=f"Prediction Distribution EV Range [-{ev},{ev}]",
+            figsize=(15, 15)
+        )
+        ax.set_xlabel(f"EV Choices for {type}")
+        ax.set_ylabel("Frequency")
+
+        if save_plots:
+            plt.savefig(f"distribution_ev{ev}_{type}")
+        plt.show()

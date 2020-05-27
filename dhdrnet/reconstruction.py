@@ -1,5 +1,4 @@
 import argparse
-import csv
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -14,7 +13,7 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 from dhdrnet import util
-from dhdrnet.util import get_mid_exp
+from dhdrnet.util import append_csv, read_stats_from_file, find_remaining, get_mid_exp
 
 
 def get_predicted_exps(exposures, preds):
@@ -53,7 +52,6 @@ def ev_stats(gt_dir, gt_stem, processed_dir):
     logs = {"name": gt_stem}
     gt_img = co.read_image(gt_dir / f"{gt_stem}.png")
     for ev_folder in processed_dir.iterdir():
-        ev_range = ev_folder.name.split("max_ev")[-1]
         ev_images = ev_folder.glob(f"{gt_stem}*")
 
         for ev_image in ev_images:
@@ -72,18 +70,6 @@ def ev_stats(gt_dir, gt_stem, processed_dir):
             )
 
     return logs
-
-
-def append_csv(data, out):
-    first_write = False
-    if (not out.exists()) or out.stat().st_size == 0:
-        out.touch()
-        first_write = True
-    with out.open(mode="a") as f:
-        writer = csv.DictWriter(f, fieldnames=data.keys())
-        if first_write:
-            writer.writeheader()
-        writer.writerow(data)
 
 
 def reconstruction_stats(reconstructed, ground_truth):
@@ -111,26 +97,6 @@ def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
     reconstruction = torch.stack(centercrop).permute(0, 3, 1, 2)
     reconstruction.requires_grad_()
     return reconstruction
-
-
-def read_stats_from_file(statsfile: Path):
-    stats = []
-    with statsfile.open("r") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            stats.append(row)
-    return stats
-
-
-def find_remaining(stats, gt_dir):
-    names = []
-    for record in stats:
-        if len(record) == 49:
-            names.append(record["name"])
-
-    names = set(names)
-    gt_names = set([gt.stem for gt in gt_dir.iterdir()])
-    return gt_names - names
 
 
 def main(args):

@@ -1,3 +1,4 @@
+import csv
 import os
 import random
 from collections import defaultdict
@@ -141,3 +142,35 @@ def compute_metadata(ev):
 def norm_zero_one(a):
     min_a = np.min(a)
     return (a - min_a) / (np.max(a) - min_a)
+
+
+def append_csv(data, out, fieldnames):
+    first_write = False
+    if (not out.exists()) or out.stat().st_size == 0:
+        out.touch()
+        first_write = True
+    with out.open(mode="a") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if first_write:
+            writer.writeheader()
+        writer.writerow(data)
+
+
+def read_stats_from_file(statsfile: Path):
+    stats = []
+    with statsfile.open("r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            stats.append(row)
+    return stats
+
+
+def find_remaining(stats, gt_dir, record_length):
+    names = []
+    for record in stats:
+        if len(record) == record_length:
+            names.append(record["name"])
+
+    names = set(names)
+    gt_names = set([gt.stem for gt in gt_dir.iterdir()])
+    return gt_names - names

@@ -7,18 +7,17 @@ from typing import Callable, Collection, List
 
 import colour as co
 import numpy as np
+from more_itertools import flatten
 from tqdm import tqdm
 
 import dhdrnet.image_loader as il
 from dhdrnet.image_loader import gen_multi_exposures
 from dhdrnet.reconstruction import (
-    append_csv,
-    find_remaining,
     mertens_fuse,
-    read_stats_from_file,
     reconstruction_stats,
 )
 from dhdrnet.util import get_project_root
+from util import append_csv, read_stats_from_file, find_remaining
 
 DATA_DIR = get_project_root() / "data"
 
@@ -32,9 +31,9 @@ def main():
 
 
 def gen(
-    image_paths: Collection[Path],
-    processed_dir: Path,
-    fuse_fun: Callable[[Collection[Path]], Collection[Path]],
+        image_paths: Collection[Path],
+        processed_dir: Path,
+        fuse_fun: Callable[[Collection[Path]], Collection[Path]],
 ) -> Collection[Path]:
     image_paths = list(image_paths)
 
@@ -51,50 +50,60 @@ def gen(
 
 
 def gen_optimal_pairs(fuse_func, raw_dir, gt_dir, remaining, out_dir, logname):
-    # raws = [raw_dir / f"{entry}.dng" for entry in remaining]
-    # gts = [gt_dir / f"{entry}.png" for entry in remaining]
     raw_gt = [
         (raw_dir / f"{entry}.dng", gt_dir / f"{entry}.png") for entry in remaining
     ]
     ev_max = [4, 5, 6, 7]
-    exp_img_combos = list(product(ev_max, raw_gt))
+    ev_ranges = [np.linspace(-ev, ev, 5) for ev in ev_max]
+    all_csv_keys = [
+        f"{metric}_[{ev_a}][{ev_b}]"
+        for metric, (ev_a, ev_b) in flatten(
+            [
+                product(["mse", "ssim", "ms_ssim"], combinations(ev_range, 2))
+                for ev_range in ev_ranges
+            ]
+        )
+    ]
     with ThreadPoolExecutor() as executor:
-        for ev_max, (raw, gt) in tqdm(exp_img_combos):
+        for raw, gt in tqdm(raw_gt):
             future = executor.submit(
-                optimal_fusion_stats, fuse_func, ev_max, raw, gt, out_dir
+                optimal_fusion_stats, fuse_func, ev_ranges, raw, gt, out_dir
             )
             records = future.result()
-            append_csv(records, out_dir / logname)
+            append_csv(records, out_dir / logname, fieldnames=["name", *all_csv_keys])
 
 
-def optimal_fusion_stats(fuse_func, ev_max, raw, gt, out_dir):
+def optimal_fusion_stats(fuse_func, ev_ranges, raw, gt, out_dir):
     logs = {"name": gt.stem}
     gt_img = co.read_image(gt)
 
-    ev_range = np.linspace(-ev_max, ev_max, 5)
-    exposures = gen_multi_exposures(raw, *ev_range)
+    for ev_range in ev_ranges:
+        exposures = gen_multi_exposures(raw, *ev_range)
+        ev_exposures = zip(ev_range, exposures)
+        for (ev_a, a), (ev_b, b) in combinations(ev_exposures, 2):
+            if (out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png").exists():
+                print("") #newline since progress bar gets in the way
+                print(f"image {gt.stem}_[{ev_a}][{ev_b}].png already exists, skipped generation")
+                fused_img = co.read_image(out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png")
+            else:
+                fused_img = fuse_func([a, b])
+                co.write_image(
+                    fused_img, out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png", bit_depth="uint8"
+                )
 
-    ev_exposures = zip(ev_range, exposures)
-    for (ev_a, a), (ev_b, b) in combinations(ev_exposures, 2):
-        if ev_a == ev_b:
-            continue
-        fused_img = fuse_func([a, b])
-        mse, ssim, ms_ssim = reconstruction_stats(fused_img, gt_img)
-        logs.update(
-            {
-                f"mse_[{ev_a}][{ev_b}]": mse,
-                f"ssim_[{ev_a}][{ev_b}]": ssim,
-                f"ms_ssim_[{ev_a}][{ev_b}]": ms_ssim,
-            }
-        )
-        co.write_image(
-            fused_img, out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png", bit_depth="uint8"
-        )
+            mse, ssim, ms_ssim = reconstruction_stats(fused_img, gt_img)
+            logs.update(
+                {
+                    f"mse_[{ev_a}][{ev_b}]": mse,
+                    f"ssim_[{ev_a}][{ev_b}]": ssim,
+                    f"ms_ssim_[{ev_a}][{ev_b}]": ms_ssim,
+                }
+            )
     return logs
 
 
 def gen_all_fuse_options(
-    fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
+        fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
 ):
     all_ev_steps = [5]  # range(5, 10)
     sorted_raw = sorted(raw_images, key=lambda p: p.stem)
@@ -159,12 +168,13 @@ if __name__ == "__main__":
         raw_dir = Path(args.raw_dir)
         gt_dir = Path(args.gt_dir)
         logname = args.log_name
-        if (out_dir / logname).exists():
-            print("existing records found, excluding existing records from computation")
-            stats_file = read_stats_from_file(out_dir / logname)
-            remaining = find_remaining(stats_file, gt_dir)
-        else:
-            remaining = [gt.stem for gt in gt_dir.iterdir()]
+        # if (out_dir / logname).exists():
+        #     print("existing records found, excluding existing records from computation")
+        #     stats_file = read_stats_from_file(out_dir / logname)
+        #     remaining = find_remaining(stats_file, gt_dir, 121)
+        # else:
+        # now just skipping over files already genned, but still computing stats as some might have been missed
+        remaining = [gt.stem for gt in gt_dir.iterdir()]
 
         gen_optimal_pairs(
             mertens_fuse, raw_dir, gt_dir, remaining, out_dir, args.log_name
