@@ -25,6 +25,9 @@ from dhdrnet.cv_fuse import FuseMethod
 DATA_DIR = Path("../data").resolve()
 
 
+co.utilities.filter_warnings()
+
+
 def ldr_image_fusion(ldr_files: Iterator[Path]):
     image_stack = ldr_files_to_imagestack(ldr_files)
     merged = image_stack_to_radiance_image(image_stack)
