@@ -1,9 +1,7 @@
-import logging
-import shlex
-import subprocess
+from collections import defaultdict
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from functools import lru_cache, partial, singledispatch
+from functools import partial, singledispatch
 from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
@@ -20,10 +18,7 @@ from colour_hdri import (
     image_stack_to_radiance_image,
 )
 
-from dhdrnet.cv_fuse import FuseMethod
-
 DATA_DIR = Path("../data").resolve()
-
 
 co.utilities.filter_warnings()
 
@@ -53,7 +48,7 @@ def ldr_files_to_imagestack(ldr_files: Iterator[Path]) -> ImageStack:
 
 @singledispatch
 def group_ldr_paths(
-    image_paths: Collection[Path],
+        image_paths: Collection[Path],
 ) -> DefaultDict[str, Collection[Path]]:
     """
 takes the path of the dir of all processed LDR pngs, returns them
@@ -103,11 +98,11 @@ def read_hdr(path: Path) -> np.ndarray:
 
 
 def gen_multi_exposures(
-    img_path: Collection[Path], *exposure_values
+        img_path: Path, *exposure_values
 ) -> Collection[np.ndarray]:
     img_loaded = co.read_image(img_path)
     exposures = [
-        (255 * ch.adjust_exposure(img_loaded, exposure)).astype(int)
+        ch.adjust_exposure(img_loaded, exposure)
         for exposure in exposure_values
     ]
     return exposures
@@ -150,7 +145,7 @@ def write_exp_image(image_path: Path, out_path: Path) -> List[Path]:
 
 
 def parallel_write_multi_exp(
-    image_list: Collection[Path], out_path: Path
+        image_list: Collection[Path], out_path: Path
 ) -> Iterator[Path]:
     img_writer = partial(write_exp_image, out_path=out_path)
     with ProcessPoolExecutor(max_workers=25) as executor:

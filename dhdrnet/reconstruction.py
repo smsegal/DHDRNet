@@ -26,12 +26,14 @@ def get_predicted_exps(exposures, preds):
     return predicted
 
 
+mertens_merger = cv.createMergeMertens()
+
+
 def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
-    mertens_merger = cv.createMergeMertens()
     merged = mertens_merger.process(images)
 
     # colour channels are BGR for some stupid reason in OpenCV
-    merged_rgb = merged  # [:, :, [2, 1, 0]]
+    merged_rgb = merged #[:, :, [2, 1, 0]]
     return merged_rgb
 
 

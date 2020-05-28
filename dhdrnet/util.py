@@ -3,7 +3,7 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
-from itertools import product
+from contextlib import redirect_stdout, redirect_stderr, contextmanager, ExitStack
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -11,7 +11,6 @@ from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
 import colour_hdri as ch
 import numpy as np
-from PIL import Image
 
 T = TypeVar("T")
 
@@ -174,3 +173,14 @@ def find_remaining(stats, gt_dir, record_length):
     names = set(names)
     gt_names = set([gt.stem for gt in gt_dir.iterdir()])
     return gt_names - names
+
+
+@contextmanager
+def suppress(out=True, err=False):
+    with ExitStack() as stack:
+        with open(os.devnull, "w") as null:
+            if out:
+                stack.enter_context(redirect_stdout(null))
+            if err:
+                stack.enter_context(redirect_stderr(null))
+            yield

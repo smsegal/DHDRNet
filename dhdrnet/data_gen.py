@@ -16,7 +16,7 @@ from dhdrnet.reconstruction import (
     mertens_fuse,
     reconstruction_stats,
 )
-from dhdrnet.util import get_project_root, append_csv
+from dhdrnet.util import get_project_root, append_csv, suppress
 
 DATA_DIR = get_project_root() / "data"
 
@@ -83,12 +83,14 @@ def optimal_fusion_stats(fuse_func, ev_ranges, raw, gt, out_dir):
             if (out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png").exists():
                 print("")  # newline since progress bar gets in the way
                 print(f"image {gt.stem}_[{ev_a}][{ev_b}].png already exists, skipped generation")
+                # fused_img = np.array(cv.imread(str(out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png"))).astype(np.uint8)
                 fused_img = co.read_image(out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png")
             else:
                 fused_img = fuse_func([a, b])
-                co.write_image(
-                    fused_img, out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png", bit_depth="uint8"
-                )
+                with suppress(err=True, out=True):
+                    co.write_image(
+                        fused_img, out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png", bit_depth="float32"
+                    )
 
             mse, ssim, ms_ssim = reconstruction_stats(fused_img, gt_img)
             logs.update(
