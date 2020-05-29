@@ -76,7 +76,7 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
         plt.figure()
         ax = type_stats[f"optimal_{type}"].value_counts(sort=False, normalize=True).plot(
             kind="bar", title=f"Prediction Distribution EV Range [-{ev},{ev}]",
-            figsize=(15, 15)
+            figsize=(10, 10)
         )
         ax.set_xlabel(f"EV Choices for {type}")
         ax.set_ylabel("Frequency")
