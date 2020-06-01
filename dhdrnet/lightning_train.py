@@ -1,14 +1,19 @@
-from dhdrnet.lightning_model import DHDRNet
+from argparse import ArgumentParser
+
 from pytorch_lightning import loggers, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-import torch
+
+from dhdrnet.lightning_model import DHDRNet
+from dhdrnet.model_lut import DHDRNet as LUTNet
 
 
 def main(hparams=None):
-    model = DHDRNet()
-    logger = loggers.TensorBoardLogger("logs/")
+    if hparams.method == "lut":
+        model = LUTNet()
+    elif hparams.method == "reconstruction":
+        model = DHDRNet()
 
-    num_gpu = 1 if torch.cuda.is_available() else 0
+    logger = loggers.TensorBoardLogger("logs/")
 
     checkpoint_loss_callback = ModelCheckpoint(
         monitor="val_loss",
@@ -18,11 +23,15 @@ def main(hparams=None):
     )
 
     trainer = Trainer(
-        gpus=num_gpu, logger=logger, checkpoint_callback=checkpoint_loss_callback
+        gpus=hparams.gpus, logger=logger, checkpoint_callback=checkpoint_loss_callback
     )
 
     trainer.fit(model)
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+    parser.add_argument("--gpus", default=None)
+    parser.add_argument("--method", choices=["reconstruction", "lut"])
+    args = parser.parse_args()
+    main(args)

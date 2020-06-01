@@ -100,6 +100,8 @@ def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
     reconstruction.requires_grad_()
     return reconstruction
 
+def reconstruction_loss(ground_truth, preds):
+    
 
 def main(args):
     target_dir = Path(args.target_dir)

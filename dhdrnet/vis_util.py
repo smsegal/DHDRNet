@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from more_itertools import interleave, flatten
+import pandas as pd
+from more_itertools import flatten, interleave
 from mpl_toolkits.axes_grid1 import ImageGrid
 
 from dhdrnet import image_loader
@@ -56,10 +57,20 @@ def view_data_sample(dataset, idx=None):
 def get_pred_dist(stats_df, categories, type, save_plots=False):
     grouped = dict()
     for cat, ev_stops in categories.items():
-        selected_cols = list(flatten([[c for c in stats_df.columns if c.endswith(f"_{ev}")] for ev in ev_stops]))
+        selected_cols = list(
+            flatten(
+                [
+                    [c for c in stats_df.columns if c.endswith(f"_{ev}")]
+                    for ev in ev_stops
+                ]
+            )
+        )
         grouped[cat] = stats_df.loc[:, ["name", *selected_cols]]
 
-    for ev, stats in grouped.items():
+    # fig, ax = plt.subplots(1, len(grouped))
+    # fig.tight_layout()
+
+    for i, (ev, stats) in enumerate(grouped.items()):
         type_stats = stats.loc[
                      :, ["name", *[c for c in stats.columns if c.startswith(type)]]
                      ]
@@ -72,15 +83,39 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
             type_stats[f"optimal_{type}"] = (
                 type_stats.loc[:, f"-{ev}.0":f"{ev}.0"].idxmin(axis=1).apply(float)
             )
+    return type_stats
+    # type_stats[f"optimal_{type}"].value_counts(sort=True, normalize=True).plot(
+    #     kind="bar",
+    #     title=f"{type} [-{ev},{ev}]",
+    #     figsize=(10, 5),
+    #     ax=ax[i],
+    # )
+    # ax[i].set_ylabel("Frequency")
 
-        plt.figure()
-        ax = type_stats[f"optimal_{type}"].value_counts(sort=False, normalize=True).plot(
-            kind="bar", title=f"Prediction Distribution EV Range [-{ev},{ev}]",
-            figsize=(10, 10)
-        )
-        ax.set_xlabel(f"EV Choices for {type}")
-        ax.set_ylabel("Frequency")
+    # plt.subplots_adjust(top=0.85, wspace=0.4)
 
-        if save_plots:
-            plt.savefig(f"distribution_ev{ev}_{type}")
-        plt.show()
+    # if save_plots:
+    #     plt.savefig(f"distribution_{type}")
+    # plt.show()
+
+
+from collections import defaultdict
+
+
+def columns_with(df, name):
+    """Returns view of df with columns that have the substring name in their column name"""
+    selected_columns = [c for c in df.columns if name in c]
+    return selected_columns
+
+
+def get_metric_cat_groups(df: pd.DataFrame, categories):
+    metrics = ("mse", "ssim", "ms_ssim")
+    columns_to_groups = defaultdict(dict)
+    for metric in metrics:
+        for ev, cat in categories.items():
+            for c in cat:
+                for col in df.columns:
+                    if col.startswith(metric) and col.endswith(str(c)):
+                        columns_to_groups[metric][col] = ev
+
+    return columns_to_groups

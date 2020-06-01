@@ -3,13 +3,13 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
-from contextlib import redirect_stdout, redirect_stderr, contextmanager, ExitStack
+from contextlib import (ExitStack, contextmanager, redirect_stderr,
+                        redirect_stdout)
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
-import colour_hdri as ch
 import numpy as np
 
 T = TypeVar("T")
@@ -30,8 +30,8 @@ def get_project_root() -> Path:
     try:
         git_root = (
             check_output(["git", "rev-parse", "--show-toplevel"])
-                .decode("utf-8")
-                .strip()
+            .decode("utf-8")
+            .strip()
         )
         return Path(git_root).absolute()
     except CalledProcessError:
@@ -123,19 +123,11 @@ def centercrop(images, shape):
     for im in images:
         w, h = im.shape[:-1]
         cropped = im[
-                  ceil((w - minw) / 2): ceil(w - ((w - minw) / 2)),
-                  ceil((h - minh) / 2): ceil(h - ((h - minh) / 2)),
-                  ]
+            ceil((w - minw) / 2) : ceil(w - ((w - minw) / 2)),
+            ceil((h - minh) / 2) : ceil(h - ((h - minh) / 2)),
+        ]
         all_cropped.append(cropped)
     return all_cropped
-
-
-def compute_metadata(ev):
-    f = 1
-    iso = 100
-    exposure_time = (f ** 2) / (2 ** ev)
-    metadata = ch.Metadata(f_number=f, iso=iso, exposure_time=exposure_time)
-    return metadata
 
 
 def norm_zero_one(a):
