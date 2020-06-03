@@ -21,12 +21,12 @@ class DHDRNet(LightningModule):
         )
         # for param in self.feature_extractor.parameters():
         #     param.requires_grad = False
-
-        # num_features = self.inner_model.classifier.in_features
-        # self.inner_model.classifier = nn.Linear(num_features, num_classes)
+        self.classifier = nn.LogSoftmax()
+        self.criterion = nn.NLLLoss(reduction="mean")
 
     def forward(self, x):
         x = self.inner_model(x)
+        x = self.classifier(x)
         return x
 
     def prepare_data(self):
@@ -37,16 +37,18 @@ class DHDRNet(LightningModule):
             ]
         )
         trainval_data = LUTDataset(
-            ROOT_DIR / "precomputed_data" / "train.csv",
-            ev=4,
+            ROOT_DIR / "precomputed_data" / "train.choices.csv",
+            ROOT_DIR / "precomputed_data" / "train.stats.csv",
             img_dir=DATA_DIR / "merged",
+            ev_range=4.0,  # keys are floats converted to strings (dumb i know)
             transform=transform,
         )
 
         test_data = LUTDataset(
-            ROOT_DIR / "precomputed_data" / "test.csv",
-            ev=4,
+            ROOT_DIR / "precomputed_data" / "test.choices.csv",
+            ROOT_DIR / "precomputed_data" / "test.stats.csv",
             img_dir=DATA_DIR / "merged",
+            ev_range=4.0,
             transform=transform,
         )
         train_val_ratio = 0.8
@@ -58,59 +60,55 @@ class DHDRNet(LightningModule):
         self.test_data = test_data
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.train_data, batch_size=16, num_workers=8)  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(
+            self.train_data, batch_size=16, num_workers=8
+        )  # collate_fn=LUTDataset.collate_fn)
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.val_data, batch_size=8, num_workers=8)  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(
+            self.val_data, batch_size=8, num_workers=8
+        )  # collate_fn=LUTDataset.collate_fn)
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.test_data, batch_size=8, num_workers=8)  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(
+            self.test_data, batch_size=8, num_workers=8
+        )  # collate_fn=LUTDataset.collate_fn)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=1e-3)
 
     def common_step(self, batch):
-        mid_exposure, mse_data, ssim_data, ms_ssim_data = batch
+        mid_exposure, label = batch
         outputs = self(mid_exposure)
-        _, preds = torch.max(outputs, 1)
-        # reconstructed_hdr = reconstruct_hdr_from_pred(
-        #     exposure_paths, ground_truth, preds
-        # ).type_as(mid_exposure)
-        preds.requires_grad_(True)
-        loss = torch.index_select(mse_data, dim=0, index=preds)
-        ssim_score = ssim_data[preds]
-        # loss = 1 - ssim_score
-        return loss, ssim_score
+        # _, preds = torch.max(outputs, 1)
 
-    def training_step(self, batch, batch_idx) -> Dict[str, Tensor]:
-        loss, ssim_score, *_ = self.common_step(batch)
-        logs = {"train_loss": loss, "train_ssim": ssim_score}
+        loss = self.criterion(outputs, label)
+        # loss = 1 - ssim_score
+        return loss
+
+    def training_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
+        loss = self.common_step(batch)
+        logs = {"train_loss": loss}
         return {"loss": loss, "log": logs}
 
-    def validation_step(self, batch, batch_idx) -> Dict[str, Tensor]:
+    def validation_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
         loss, ssim_score = self.common_step(batch)
-        # grid_rec = torchvision.utils.make_grid(reconstructed_hdr, normalize=True)
-        # grid_gt = torchvision.utils.make_grid(ground_truth, normalize=True)
-        # self.logger.experiment.add_image("reconstructed_hdr", grid_rec, batch_idx)
-        # self.logger.experiment.add_image("ground_truth", grid_gt, batch_idx)
-        logs = {"val_loss": loss, "val_ssim": ssim_score}
+        logs = {"val_loss": loss}
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
             self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
-    ) -> Dict[str, Dict[str, Tensor]]:
+    ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
-    def test_step(self, batch, batch_idx) -> Dict[str, Tensor]:
+    def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
         loss, ssim_score, *_ = self.common_step(batch)
-        logs = {"test_loss": loss, "test_ssim": ssim_score}
+        logs = {"test_loss": loss}
         return {"test_loss": loss, "log": logs}
 
-    def test_epoch_end(
-            self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
-    ) -> Dict[str, Dict[str, Tensor]]:
+    def test_epoch_end(self, outputs) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
         tensorboard_logs = {"test_loss": avg_loss}
         return {"test_loss": avg_loss, "log": tensorboard_logs}

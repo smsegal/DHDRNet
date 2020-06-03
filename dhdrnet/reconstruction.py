@@ -33,7 +33,7 @@ def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
     merged = mertens_merger.process(images)
 
     # colour channels are BGR for some stupid reason in OpenCV
-    merged_rgb = merged #[:, :, [2, 1, 0]]
+    merged_rgb = merged  # [:, :, [2, 1, 0]]
     return merged_rgb
 
 
@@ -100,8 +100,6 @@ def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
     reconstruction.requires_grad_()
     return reconstruction
 
-def reconstruction_loss(ground_truth, preds):
-    
 
 def main(args):
     target_dir = Path(args.target_dir)

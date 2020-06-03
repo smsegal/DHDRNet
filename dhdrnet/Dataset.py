@@ -1,9 +1,8 @@
 from pathlib import Path
 
-import numpy as np
+import pandas as pd
 import torch
 from PIL import Image
-from more_itertools import flatten
 from torch.utils.data import Dataset
 
 
@@ -59,62 +58,26 @@ class HDRDataset(Dataset):
         return exposure_paths, mid_exposure, ground_truth
 
 
-import pandas as pd
-from dhdrnet.vis_util import get_metric_cat_groups
-
-
 class LUTDataset(Dataset):
-    def __init__(self, fname: Path, ev, img_dir, transform):
-        self.dir = dir
+    def __init__(
+            self, choice_path: Path, stats_path: Path, img_dir, ev_range, transform
+    ):
         self.img_dir = img_dir
         self.transform = transform
-
-        all_data = pd.read_csv(fname).set_index("name")
-        ev_categories = {
-            ev_max: np.linspace(-ev_max, ev_max, 5) for ev_max in range(ev, ev + 1)
-        }
-        metric_categories = list(
-            flatten(get_metric_cat_groups(all_data, ev_categories).values())
-        )
-
-        self.names = all_data.index
-        self.mse_data = np.array(
-            all_data[metric_categories]
-                .loc[:, lambda df: [c for c in df.columns if c.startswith("mse")]]
-                .rename(columns=lambda c: c.split("_")[-1])
-        )
-
-        self.ssim_data = np.array(
-            all_data[metric_categories]
-                .loc[:, lambda df: [c for c in df.columns if c.startswith("ssim")]]
-                .rename(columns=lambda c: c.split("_")[-1])
-        )
-
-        self.ms_ssim_data = np.array(
-            all_data[metric_categories]
-                .loc[:, lambda df: [c for c in df.columns if c.startswith("ms_ssim")]]
-                .rename(columns=lambda c: c.split("_")[-1])
-        )
+        self.ev_range = str(ev_range)
+        all_choices = pd.read_csv(choice_path) \
+            .set_index("name") \
+            .groupby("metric") \
+            .get_group("mse")
+        self.opt_choices = all_choices.get
+        self.stats = pd.read_csv(stats_path).set_index("name")
+        self.names = pd.Series(self.stats.index.unique())
 
     def __len__(self):
-        return len(self.mse_data)
+        return len(self.names)
 
-    def __getitem__(self, idx):
-        mid_exp = Image.open(self.img_dir / f"{self.names[idx]}.png")
-        mid_exp = self.transform(mid_exp)
-
-        mse_data = torch.as_tensor(self.mse_data[idx])
-        return (
-            mid_exp,
-            mse_data,
-            self.ssim_data[idx],
-            self.ms_ssim_data[idx],
-        )
-
-    @staticmethod
-    def collate_fn(batch):
-        mid_exposure = torch.stack([b[0] for b in batch])
-        mse_data = torch.stack([b[1] for b in batch])
-        ssim_data = torch.stack([b[2] for b in batch])
-        ms_ssim_data = torch.stack([b[3] for b in batch])
-        return mid_exposure, mse_data, ssim_data, ms_ssim_data
+    def __getitem__(self, index):
+        img_name = self.names[index]
+        label = self.optimal_choices.loc[img_name, self.ev_range]
+        mid_exp = self.transform(Image.open(self.img_dir / f"{img_name}.png"))
+        return mid_exp, label
