@@ -21,12 +21,10 @@ class DHDRNet(LightningModule):
         )
         # for param in self.feature_extractor.parameters():
         #     param.requires_grad = False
-        self.classifier = nn.LogSoftmax()
-        self.criterion = nn.NLLLoss(reduction="mean")
+        self.criterion = nn.CrossEntropyLoss(reduction="mean")
 
     def forward(self, x):
         x = self.inner_model(x)
-        x = self.classifier(x)
         return x
 
     def prepare_data(self):
@@ -53,7 +51,7 @@ class DHDRNet(LightningModule):
         )
         train_val_ratio = 0.8
         train_len = ceil(train_val_ratio * len(trainval_data))
-        val_len = ceil((1 - train_val_ratio) * len(trainval_data))
+        val_len = len(trainval_data) - train_len
         train_data, val_data = random_split(trainval_data, lengths=(train_len, val_len))
         self.train_data = train_data
         self.val_data = val_data
@@ -92,19 +90,19 @@ class DHDRNet(LightningModule):
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, ssim_score = self.common_step(batch)
+        loss = self.common_step(batch)
         logs = {"val_loss": loss}
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-            self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
+        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, ssim_score, *_ = self.common_step(batch)
+        loss = self.common_step(batch)
         logs = {"test_loss": loss}
         return {"test_loss": loss, "log": logs}
 

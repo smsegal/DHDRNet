@@ -10,7 +10,7 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-            self, gt_dir: Path, exp_dir: Path, transform=None,
+        self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
@@ -58,26 +58,57 @@ class HDRDataset(Dataset):
         return exposure_paths, mid_exposure, ground_truth
 
 
+import numpy as np
+
+
 class LUTDataset(Dataset):
     def __init__(
-            self, choice_path: Path, stats_path: Path, img_dir, ev_range, transform
+        self,
+        choice_path: Path,
+        stats_path: Path,
+        img_dir,
+        ev_range,
+        transform,
+        metric="mse",
     ):
         self.img_dir = img_dir
         self.transform = transform
-        self.ev_range = str(ev_range)
-        all_choices = pd.read_csv(choice_path) \
-            .set_index("name") \
-            .groupby("metric") \
-            .get_group("mse")
-        self.opt_choices = all_choices.get
+        self.ev_cat = str(ev_range)
+        self.opt_choices = (
+            pd.read_csv(choice_path)
+            .set_index("name")
+            .sort_index()
+            .groupby("metric")
+            .get_group(metric)
+        )
         self.stats = pd.read_csv(stats_path).set_index("name")
-        self.names = pd.Series(self.stats.index.unique())
+        self.names = pd.Series(self.opt_choices.index)
+
+        self._length = len(self)  # cache it
+        self.labelindices = _ev_to_index(ev_range)
 
     def __len__(self):
         return len(self.names)
 
     def __getitem__(self, index):
+        if index >= self._length:
+            raise IndexError()
+
         img_name = self.names[index]
-        label = self.optimal_choices.loc[img_name, self.ev_range]
+        ev = self.opt_choices.loc[img_name, self.ev_cat]
+        label = self.labelindices[ev]
         mid_exp = self.transform(Image.open(self.img_dir / f"{img_name}.png"))
         return mid_exp, label
+
+
+def _ev_to_index(ev_range):
+    labels = {}
+    for i, ev in enumerate(np.linspace(-ev_range, ev_range, 5)):
+        if ev == 0:
+            continue
+        if ev > 0:
+            v = i - 1
+        else:
+            v = i
+        labels[ev] = v
+    return labels
