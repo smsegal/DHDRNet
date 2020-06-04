@@ -19,7 +19,7 @@ def main(hparams=None):
         monitor="val_loss",
         mode="min",
         save_top_k=3,
-        filepath="checkpoints/dhdr-{epoch}-{val_loss:.2f}-{val_ssim:.2f}",
+        filepath="checkpoints/dhdr_{method}-{epoch}-{val_loss:.2f}-{val_ssim:.2f}",
     )
 
     trainer = Trainer(
