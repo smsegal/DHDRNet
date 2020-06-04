@@ -76,21 +76,21 @@ class DHDRNet(LightningModule):
         return Adam(self.parameters(), lr=1e-3)
 
     def common_step(self, batch):
-        mid_exposure, label = batch
+        mid_exposure, label, stats = batch
         outputs = self(mid_exposure)
-        # _, preds = torch.max(outputs, 1)
+        _, preds = torch.max(outputs, 1)
 
         loss = self.criterion(outputs, label)
         # loss = 1 - ssim_score
-        return loss
+        return loss, stats
 
     def training_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss = self.common_step(batch)
+        loss, stats = self.common_step(batch)
         logs = {"train_loss": loss}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss = self.common_step(batch)
+        loss, stats = self.common_step(batch)
         logs = {"val_loss": loss}
         return {"val_loss": loss, "log": logs}
 
