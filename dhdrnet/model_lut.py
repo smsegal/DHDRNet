@@ -58,19 +58,13 @@ class DHDRNet(LightningModule):
         self.test_data = test_data
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(
-            self.train_data, batch_size=16, num_workers=8
-        )  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(self.train_data, batch_size=16, num_workers=8)
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(
-            self.val_data, batch_size=8, num_workers=8
-        )  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(self.val_data, batch_size=8, num_workers=8)
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(
-            self.test_data, batch_size=8, num_workers=8
-        )  # collate_fn=LUTDataset.collate_fn)
+        return DataLoader(self.test_data, batch_size=8, num_workers=8)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=1e-3)

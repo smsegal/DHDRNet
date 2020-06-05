@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
@@ -10,7 +11,7 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-            self, gt_dir: Path, exp_dir: Path, transform=None,
+        self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
@@ -58,28 +59,25 @@ class HDRDataset(Dataset):
         return exposure_paths, mid_exposure, ground_truth
 
 
-import numpy as np
-
-
 class LUTDataset(Dataset):
     def __init__(
-            self,
-            choice_path: Path,
-            stats_path: Path,
-            img_dir,
-            ev_range,
-            transform,
-            metric="mse",
+        self,
+        choice_path: Path,
+        stats_path: Path,
+        img_dir,
+        ev_range,
+        transform,
+        metric="mse",
     ):
         self.img_dir = img_dir
         self.transform = transform
         self.ev_cat = str(ev_range)
         self.opt_choices = (
             pd.read_csv(choice_path)
-                .set_index("name")
-                .sort_index()
-                .groupby("metric")
-                .get_group(metric)
+            .set_index("name")
+            .sort_index()
+            .groupby("metric")
+            .get_group(metric)
         )
         self.stats = pd.read_csv(stats_path).set_index("name")
         self.names = pd.Series(self.opt_choices.index)
