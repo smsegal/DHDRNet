@@ -77,10 +77,10 @@ def ev_stats(gt_dir, gt_stem, processed_dir):
 def reconstruction_stats(reconstructed, ground_truth):
     reconstructed_t = torch.tensor(reconstructed).permute(2, 0, 1)[None, :]
     ground_truth_t = torch.tensor(ground_truth).permute(2, 0, 1)[None, :]
-    mse = F.mse_loss(reconstructed_t, ground_truth_t)
-    ssim_score = ssim(reconstructed_t, ground_truth_t)
-    ms_ssim_score = ms_ssim(reconstructed_t, ground_truth_t)
-    return float(mse), float(ssim_score), float(ms_ssim_score)
+    mse = F.mse_loss(ground_truth_t, reconstructed_t)
+    ssim_score = ssim(ground_truth_t, reconstructed_t)
+    ms_ssim_score = ms_ssim(ground_truth_t, reconstructed_t)
+    return mse, ssim_score, ms_ssim_score
 
 
 def reconstruct_hdr_from_pred(exposure_paths, ground_truth, preds):
