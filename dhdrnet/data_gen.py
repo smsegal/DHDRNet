@@ -6,15 +6,12 @@ from pathlib import Path
 from typing import Callable, Collection, List
 
 import colour as co
-import cv2 as cv
 import numpy as np
-import rawpy
 from more_itertools import flatten
-from PIL import Image
 from tqdm import tqdm
-from tqdm.contrib.concurrent import process_map
 
 import dhdrnet.image_loader as il
+from dhdrnet.gen_pairs import GenAllPairs
 from dhdrnet.image_loader import gen_multi_exposures
 from dhdrnet.reconstruction import mertens_fuse, reconstruction_stats
 from dhdrnet.util import append_csv, get_project_root, suppress
@@ -31,9 +28,9 @@ def main():
 
 
 def gen(
-    image_paths: Collection[Path],
-    processed_dir: Path,
-    fuse_fun: Callable[[Collection[Path]], Collection[Path]],
+        image_paths: Collection[Path],
+        processed_dir: Path,
+        fuse_fun: Callable[[Collection[Path]], Collection[Path]],
 ) -> Collection[Path]:
     image_paths = list(image_paths)
 
@@ -73,79 +70,6 @@ def gen_optimal_pairs(fuse_func, raw_dir, gt_dir, remaining, out_dir, logname):
             append_csv(records, out_dir / logname, fieldnames=["name", *all_csv_keys])
 
 
-class GenAllPairs:
-    def __init__(self, ev_maximums, raw_path: Path, gt_path: Path, out_path: Path):
-        self.exposures = set(
-            sorted(flatten(np.linspace(-ev, ev, 5) for ev in ev_maximums))
-        )
-        self.raw_path = raw_path
-        self.gt_path = gt_path
-        self.out_path = out_path
-        self.exp_out_path = self.out_path / "exposures"
-        self.reconstructed_path = self.out_path / "reconstructions"
-
-        self.exp_out_path.mkdir(parents=True, exist_ok=True)
-        self.reconstructed_path.mkdir(parents=True, exist_ok=True)
-
-        # self.store = pd.HDFStore(ROOT_DIR / "precomputed_data" / "store.h5")
-        # self.stats = pd.DataFrame(data=None, columns=["name", "metric", "ev a", "ev b"])
-
-    def gen_exposures_dispatch(self):
-        raw_files = list(self.raw_path.iterdir())
-        return process_map(self.create_needed_exposures, raw_files, chunksize=40)
-
-    def compute_stats(self):
-        pass
-
-    def __call__(self):
-        computed_paths = self.gen_exposures_dispatch()
-        print("computed all raws")
-
-    def create_needed_exposures(self, raw_fp):
-        computed_exposures = set()
-        for ev in self.exposures:
-            image_path = self.out_path / "exposures" / f"{raw_fp.stem}[{ev}].png"
-            if image_path.exists():
-                print(f"skipping previously generated: {image_path}")
-                computed_exposures.add(ev)
-
-        exposures = self.exposures - computed_exposures
-        for image, ev in exposures_from_raw(raw_fp, exposures):
-            image.save(self.out_path / "exposures" / f"{raw_fp.stem}[{ev}].png")
-        return raw_fp
-
-
-def image_statistics(ground_truth):
-    mertens_merger = cv.createMergeMertens()
-
-    def mertens_fuse(images: List[np.ndarray]) -> np.ndarray:
-        merged = mertens_merger.process(images)
-        merged_rgb = merged  # [:, :, [2, 1, 0]]
-        return merged_rgb
-
-    def compute_stats(ima, exa, imb, exb):
-        reconstruction = mertens_fuse(ima, imb)
-        return reconstruction_stats(reconstruction, ground_truth)
-
-
-def exposures_from_raw(raw_path: Path, exposures: Collection):
-    with rawpy.imread(str(raw_path)) as raw:
-        black_levels = raw.black_level_per_channel
-        raw_orig = raw.raw_image.copy()
-
-        # tiled to add to the right channels of the bayer image
-        black_levels_tiled = np.tile(black_levels, (raw_orig.shape // np.array([1, 4])))
-        raw_im = np.maximum(raw_orig, black_levels_tiled) - black_levels_tiled
-
-        for exposure in exposures:
-            im = raw_im * (2 ** exposure)
-            im = im + black_levels_tiled
-            im = np.minimum(im, 2 ** 16 - 1)
-            raw.raw_image[:, :] = im
-            postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)
-            yield Image.fromarray(postprocessed, "RGB"), exposure
-
-
 def optimal_images(fuse_func, ev_range, raw, gt, out_dir):
     for ev in ev_range:
         pass
@@ -156,7 +80,7 @@ def optimal_fusion_stats(fuse_func, ev_ranges, raw, gt, out_dir):
     gt_img = co.read_image(gt)
 
     for ev_range in ev_ranges:
-        exposures = exposures_from_raw(raw, ev_range)
+        exposures = GenAllPairs.exposures_from_raw(raw, ev_range)
         ev_exposures = zip(ev_range, exposures)
         for (ev_a, a), (ev_b, b) in combinations(ev_exposures, 2):
             if (out_dir / f"{gt.stem}_[{ev_a}][{ev_b}].png").exists():
@@ -187,7 +111,7 @@ def optimal_fusion_stats(fuse_func, ev_ranges, raw, gt, out_dir):
 
 
 def gen_all_fuse_options(
-    fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
+        fuse_funcs, raw_images: List[Path], gt_images: List[Path], out_dir,
 ):
     all_ev_steps = [5]  # range(5, 10)
     sorted_raw = sorted(raw_images, key=lambda p: p.stem)
