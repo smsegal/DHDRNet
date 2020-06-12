@@ -121,16 +121,13 @@ class GenAllPairs:
         if gt_fp.exists():
             gt_img = cv.imread(str(gt_fp))
         else:
-            gt_img = self._generate_gt(img_name, exp_group)
+            image_inputs = [
+                cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
+                for ev in self.exposure_groups[exp_group]
+            ]
+            gt_img = self.fuse(*image_inputs)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img, raw_fp
-
-    def _generate_gt(self, img_name, exp_group):
-        image_inputs = [
-            cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
-            for ev in self.exposure_groups[exp_group]
-        ]
-        return self.fuse(*image_inputs)
 
     def get_reconstruction(self, *args):
         # im_a, ev_a = a
