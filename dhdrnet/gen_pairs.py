@@ -1,7 +1,7 @@
 import argparse
 from collections import defaultdict
-from concurrent.futures.process import ProcessPoolExecutor
-from itertools import product
+from concurrent.futures.thread import ThreadPoolExecutor
+from itertools import product, repeat
 from pathlib import Path
 from typing import Collection, List
 
@@ -73,13 +73,13 @@ class GenAllPairs:
     def compute_stats(self):
         stats = defaultdict(list)
         raw_files = list(self.raw_path.iterdir())
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             for e_idx, ev_group in enumerate(self.exposure_groups):
                 for i, gt, raw_fp in tqdm(
-                    enumerate(
-                        executor.map(self.get_ground_truth, raw_files, chunksize=40)
-                    ),
-                    total=len(raw_files),
+                        enumerate(
+                            executor.map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files)), chunksize=40)
+                        ),
+                        total=len(raw_files),
                 ):
                     name = raw_fp.stem
                     img_pool = [
@@ -92,8 +92,8 @@ class GenAllPairs:
 
                     # for ((im_a, ev_a), (im_b, ev_b)), metric in img_metric_product:
                     for reconstruction, metric, ev_a, ev_b in tqdm(
-                        executor.map(self.get_reconstruction, *img_metric_product),
-                        total=len(img_metric_product),
+                            executor.map(self.get_reconstruction, *img_metric_product),
+                            total=len(img_metric_product),
                     ):
                         stats["name"].append(name)
                         stats["metric"].append(metric)
@@ -146,7 +146,7 @@ class GenAllPairs:
         return rec_img
 
     def fuse(self, images: List[Image.Image]) -> np.ndarray:
-        merged = self._fusefunc(list(map(np.array, images)))[:,:,[2,1,0]]
+        merged = self._fusefunc(list(map(np.array, images)))[:, :, [2, 1, 0]]
         merged = np.clip(merged * 255, 0, 255).astype("uint8")
         return merged
 
