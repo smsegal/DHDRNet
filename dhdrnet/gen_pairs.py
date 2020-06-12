@@ -127,7 +127,7 @@ class GenAllPairs:
 
     def _generate_gt(self, img_name, exp_group):
         image_inputs = [
-            (cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png")), ev)
+            cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
             for ev in self.exposure_groups[exp_group]
         ]
         return self.fuse(*image_inputs)
