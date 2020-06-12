@@ -37,7 +37,7 @@ def get_project_root() -> Path:
     except CalledProcessError:
         # not in a git repo
         # out of options here, might want to just fail at this point
-        return Path.cwd().parent.parent
+        return Path.cwd().parent
 
 
 ROOT_DIR: Path = get_project_root()
