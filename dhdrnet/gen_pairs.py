@@ -1,8 +1,9 @@
 import argparse
+import operator as op
 from collections import defaultdict
-from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
-from itertools import repeat, combinations
+from functools import partial, reduce
+from itertools import combinations, repeat
 from pathlib import Path
 from typing import Collection, List
 
@@ -29,7 +30,17 @@ def main(args):
     )
     generator(skip_exp=args.skip_exp)
 
-from functools import partial
+
+_ff = cv.createMergeMertens().process
+
+
+def fuse(*images: List[np.ndarray]) -> np.ndarray:
+    images = [np.array(img) for img in images]
+    merged = _ff(images)
+    merged = np.clip(merged * 255, 0, 255).astype("uint8")
+    return merged
+
+
 class GenAllPairs:
     def __init__(self, ev_maximums, raw_path: Path, gt_path: Path, out_path: Path):
         self.exposure_groups = [np.linspace(-ev, ev, 5) for ev in ev_maximums]
@@ -41,14 +52,15 @@ class GenAllPairs:
         self.reconstructed_out_path = self.out_path / "reconstructions"
         self.gt_out_path = self.out_path / "ground_truth"
 
-        self.metricfuncs = {"mse": mean_squared_error, "ssim": partial(structural_similarity, multichannel=True)}
+        self.metricfuncs = {
+            "mse": mean_squared_error,
+            "ssim": partial(structural_similarity, multichannel=True),
+        }
         self.metrics = list(self.metricfuncs.keys())
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_out_path.mkdir(parents=True, exist_ok=True)
-
-        self._fusefunc = cv.createMergeMertens().process
 
         self._storepath = ROOT_DIR / "precomputed_data" / "store.h5"
 
@@ -75,32 +87,43 @@ class GenAllPairs:
     def compute_stats(self):
         stats = defaultdict(list)
         raw_files = list(self.raw_path.iterdir())
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             for e_idx, ev_group in enumerate(self.exposure_groups):
-                for (gt, raw_fp) in tqdm(executor.map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files)), chunksize=40),
-                                         total=len(raw_files)):
+                for (gt, raw_fp) in tqdm(
+                        map(
+                            self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files))
+                        ),
+                        total=len(raw_files),
+                ):
                     name = raw_fp.stem
-                    img_pool = [
-                        (cv.imread(str(self.exp_out_path / f"{name}[{ev}].png")), ev)
-                        for ev in ev_group
-                    ]
-
+                    img_pool = self.get_exposures(name, ev_group)
                     img_pairs = list(combinations(img_pool, r=2))
 
-                    for reconstruction, ev_a, ev_b in tqdm(
-                            executor.map(self.get_reconstruction, repeat(name), img_pairs, chunksize=40),
-                            total=len(img_pairs),
-                    ):
-                        for metric in self.metrics:
-                            stats["name"].append(name)
-                            stats["metric"].append(metric)
-                            stats["ev_a"].append(ev_a)
-                            stats["ev_b"].append(ev_b)
-                            stats["score"].append(self.metricfuncs[metric](gt, reconstruction))
+                    stats = reduce(
+                        nested_dict_merge,
+                        executor.map(
+                            self.reconstruction_stats,
+                            img_pairs,
+                            repeat(gt),
+                            repeat(name),
+                        ),
+                    )
 
                     df = pd.DataFrame.from_dict(stats)
                     self.store.append(self.store_key, df)
                     print(f"appended {name} to store!")
+
+    def reconstruction_stats(self, *args):
+        ((im_a, ev_a), (im_b, ev_b)), gt, name = args
+        reconstruction = self.get_reconstruction(name, im_a, ev_a, im_b, ev_b)
+        stats = defaultdict(list)
+        for metric in self.metrics:
+            stats["name"].append(name)
+            stats["metric"].append(metric)
+            stats["ev_a"].append(ev_a)
+            stats["ev_b"].append(ev_b)
+            stats["score"].append(self.metricfuncs[metric](gt, reconstruction))
+        return stats
 
     def create_needed_exposures(self, raw_fp):
         computed_exposures = []
@@ -126,7 +149,7 @@ class GenAllPairs:
                 for ev in self.exposure_groups[exp_group]
             ]
             try:
-                gt_img = self.fuse(*image_inputs)
+                gt_img = fuse(*image_inputs)
             except Exception as e:
                 print(img_name)
                 print(e)
@@ -134,21 +157,25 @@ class GenAllPairs:
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img, raw_fp
 
-    def get_reconstruction(self, *args):
-        name, ((im_a, ev_a), (im_b, ev_b)) = args
+    def get_reconstruction(self, name, im_a, ev_a, im_b, ev_b):
         rec_path = self.reconstructed_out_path / f"{name}[{ev_a}][{ev_b}].png"
         if rec_path.exists():
-            rec_img = np.array(Image.open(rec_path))
+            rec_img = cv.imread(str(rec_path))
         else:
-            try:
-                rec_img = self.fuse(im_a, im_b)
+            rec_img = fuse(im_a, im_b)
             cv.imwrite(str(rec_path), rec_img)
-        return rec_img, ev_a, ev_b
+        return rec_img
 
-    def fuse(self, *images: List[np.ndarray]) -> np.ndarray:
-        merged = self._fusefunc(images)
-        merged = np.clip(merged * 255, 0, 255).astype("uint8")
-        return merged
+    def get_exposures(self, name, ev_group):
+        # assume if first one doesnt exist, none do
+        exp_path = self.exp_out_path / f"{name}[{ev_group[0]}].png"
+        if exp_path.exists():
+            return [
+                (cv.imread(str(self.exp_out_path / f"{name}[{ev}].png")), ev)
+                for ev in ev_group
+            ]
+        else:
+            return self.exposures_from_raw(self.raw_path / f"{name}.dng", ev_group)
 
     @staticmethod
     def exposures_from_raw(raw_path: Path, exposures: Collection):
@@ -169,6 +196,24 @@ class GenAllPairs:
                 raw.raw_image[:, :] = im
                 postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)
                 yield Image.fromarray(postprocessed, "RGB"), exposure
+
+
+def nested_dict_merge(d1, d2):
+    merged = dict()
+
+    # base case, have lists as leaves
+    if type(d1) == list:
+        return d1 + d2
+
+    combined_keys = set(reduce(op.add, (list(d.keys()) for d in (d1, d2))))
+    for k in combined_keys:
+        if k in d1 and k in d2:
+            merged[k] = nested_dict_merge(d1[k], d2[k])
+        elif k in d1:
+            merged[k] = d1[k]
+        elif k in d2:
+            merged[k] = d2[k]
+    return merged
 
 
 if __name__ == "__main__":
