@@ -125,7 +125,12 @@ class GenAllPairs:
                 cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
                 for ev in self.exposure_groups[exp_group]
             ]
-            gt_img = self.fuse(*image_inputs)
+            try:
+                gt_img = self.fuse(*image_inputs)
+            except Exception as e:
+                print(img_name)
+                print(e)
+                exit(1)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img, raw_fp
 
@@ -137,10 +142,6 @@ class GenAllPairs:
         else:
             try:
                 rec_img = self.fuse(im_a, im_b)
-            except Exception as e:
-                print(name)
-                print(e)
-                exit(1)
             cv.imwrite(str(rec_path), rec_img)
         return rec_img, ev_a, ev_b
 
