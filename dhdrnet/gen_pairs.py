@@ -1,7 +1,8 @@
 import argparse
 from collections import defaultdict
+from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
-from itertools import product, repeat
+from itertools import product, repeat, combinations
 from pathlib import Path
 from typing import Collection, List
 
@@ -73,35 +74,30 @@ class GenAllPairs:
     def compute_stats(self):
         stats = defaultdict(list)
         raw_files = list(self.raw_path.iterdir())
-        with ThreadPoolExecutor() as executor:
+        with ProcessPoolExecutor() as executor:
             for e_idx, ev_group in enumerate(self.exposure_groups):
-                for i, gt, raw_fp in tqdm(
-                        enumerate(
-                            executor.map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files)), chunksize=40)
-                        ),
-                        total=len(raw_files),
-                ):
+                for (gt, raw_fp) in tqdm(map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files))),
+                                         total=len(raw_files)):
                     name = raw_fp.stem
                     img_pool = [
-                        (Image.open(self.exp_out_path / f"{name}[{ev}].png"), ev)
+                        (cv.imread(str(self.exp_out_path / f"{name}[{ev}].png")), ev)
                         for ev in ev_group
                     ]
 
-                    img_pairs = distinct_combinations(img_pool, r=2)
-                    img_metric_product = list(product(img_pairs, self.metrics))
+                    img_pairs = list(combinations(img_pool, r=2))
 
                     # for ((im_a, ev_a), (im_b, ev_b)), metric in img_metric_product:
-                    for reconstruction, metric, ev_a, ev_b in tqdm(
-                            executor.map(self.get_reconstruction, *img_metric_product),
-                            total=len(img_metric_product),
+                    for reconstruction, ev_a, ev_b in tqdm(
+                            executor.map(self.get_reconstruction, repeat(name), img_pairs),
+                            total=len(img_pairs),
                     ):
-                        stats["name"].append(name)
-                        stats["metric"].append(metric)
-                        stats["ev_a"].append(ev_a)
-                        stats["ev_b"].append(ev_b)
-                        stats["score"].append(self.metricfuncs[metric](gt, reconstruction))
+                        for metric in self.metrics:
+                            stats["name"].append(name)
+                            stats["metric"].append(metric)
+                            stats["ev_a"].append(ev_a)
+                            stats["ev_b"].append(ev_b)
+                            stats["score"].append(self.metricfuncs[metric](gt, reconstruction))
 
-                if i % 5 == 0:
                     df = pd.DataFrame.from_dict(stats)
                     self.store.append(self.store_key, df)
                     print(f"appended {name} to store!")
@@ -123,31 +119,34 @@ class GenAllPairs:
         img_name = raw_fp.stem
         gt_fp = self.gt_path / f"{img_name}.png"
         if gt_fp.exists():
-            gt_img = np.array(Image.open(gt_fp))
+            gt_img = cv.imread(str(gt_fp))
         else:
             gt_img = self._generate_gt(img_name, exp_group)
             cv.imwrite(str(gt_fp), gt_img)
-        return gt_img
+        return gt_img, raw_fp
 
     def _generate_gt(self, img_name, exp_group):
         image_inputs = [
-            Image.open(self.exp_out_path / f"{img_name}[{ev}].png")
+            (cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png")), ev)
             for ev in self.exposure_groups[exp_group]
         ]
-        return self.fuse(image_inputs)
+        return self.fuse(*image_inputs)
 
-    def get_reconstruction(self, name, im_a, ev_a, im_b, ev_b):
+    def get_reconstruction(self, *args):
+        # im_a, ev_a = a
+        # im_b, ev_b = b
+        name, ((im_a, ev_a), (im_b, ev_b)) = args
         rec_path = self.reconstructed_out_path / f"{name}[{ev_a}][{ev_b}].png"
         if rec_path.exists():
             rec_img = np.array(Image.open(rec_path))
         else:
-            rec_img = self.fuse([im_a, im_b])
+            rec_img = self.fuse(im_a, im_b)
             cv.imwrite(str(rec_path), rec_img)
-        return rec_img
+        return rec_img, ev_a, ev_b
 
-    def fuse(self, images: List[Image.Image]) -> np.ndarray:
-        merged = self._fusefunc([np.array(i) for i in images])[:, :, [2, 1, 0]]
-        merged = np.clip(merged * 255, 0, 255).astype("uint8")
+    def fuse(self, *images: List[np.ndarray]) -> np.ndarray:
+        merged = self._fusefunc(images)
+        merged = np.clip(merged * 255, 0, 255).astype("uint8")[:, :, [2, 1, 0]]
         return merged
 
     @staticmethod
