@@ -2,7 +2,7 @@ import argparse
 from collections import defaultdict
 from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
-from itertools import product, repeat, combinations
+from itertools import repeat, combinations
 from pathlib import Path
 from typing import Collection, List
 
@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 import rawpy
 from PIL import Image
-from more_itertools import distinct_combinations, flatten
-from sewar import mse, msssim, ssim
+from more_itertools import flatten
+# from sewar import mse, msssim, ssim
+from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -28,7 +29,7 @@ def main(args):
     )
     generator(skip_exp=args.skip_exp)
 
-
+from functools import partial
 class GenAllPairs:
     def __init__(self, ev_maximums, raw_path: Path, gt_path: Path, out_path: Path):
         self.exposure_groups = [np.linspace(-ev, ev, 5) for ev in ev_maximums]
@@ -40,7 +41,7 @@ class GenAllPairs:
         self.reconstructed_out_path = self.out_path / "reconstructions"
         self.gt_out_path = self.out_path / "ground_truth"
 
-        self.metricfuncs = {"mse": mse, "ssim": ssim, "ms_ssim": msssim}
+        self.metricfuncs = {"mse": mean_squared_error, "ssim": partial(structural_similarity, multichannel=True)}
         self.metrics = list(self.metricfuncs.keys())
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
@@ -56,7 +57,7 @@ class GenAllPairs:
         self.stats = pd.DataFrame(
             data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
         )
-        self.store.put(self.store_key, self.stats)
+        self.store.put(self.store_key, self.stats, format="table")
 
     def __call__(self, skip_exp=False):
         if not skip_exp:
@@ -74,9 +75,9 @@ class GenAllPairs:
     def compute_stats(self):
         stats = defaultdict(list)
         raw_files = list(self.raw_path.iterdir())
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             for e_idx, ev_group in enumerate(self.exposure_groups):
-                for (gt, raw_fp) in tqdm(map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files))),
+                for (gt, raw_fp) in tqdm(executor.map(self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files)), chunksize=40),
                                          total=len(raw_files)):
                     name = raw_fp.stem
                     img_pool = [
@@ -88,7 +89,7 @@ class GenAllPairs:
 
                     # for ((im_a, ev_a), (im_b, ev_b)), metric in img_metric_product:
                     for reconstruction, ev_a, ev_b in tqdm(
-                            executor.map(self.get_reconstruction, repeat(name), img_pairs),
+                            executor.map(self.get_reconstruction, repeat(name), img_pairs, chunksize=40),
                             total=len(img_pairs),
                     ):
                         for metric in self.metrics:
@@ -130,8 +131,6 @@ class GenAllPairs:
         return gt_img, raw_fp
 
     def get_reconstruction(self, *args):
-        # im_a, ev_a = a
-        # im_b, ev_b = b
         name, ((im_a, ev_a), (im_b, ev_b)) = args
         rec_path = self.reconstructed_out_path / f"{name}[{ev_a}][{ev_b}].png"
         if rec_path.exists():
@@ -143,7 +142,7 @@ class GenAllPairs:
 
     def fuse(self, *images: List[np.ndarray]) -> np.ndarray:
         merged = self._fusefunc(images)
-        merged = np.clip(merged * 255, 0, 255).astype("uint8")[:, :, [2, 1, 0]]
+        merged = np.clip(merged * 255, 0, 255).astype("uint8")
         return merged
 
     @staticmethod
