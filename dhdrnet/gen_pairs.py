@@ -140,8 +140,7 @@ class GenAllPairs:
         if rec_path.exists():
             rec_img = np.array(Image.open(rec_path))
         else:
-            try:
-                rec_img = self.fuse(im_a, im_b)
+            rec_img = self.fuse(im_a, im_b)
             cv.imwrite(str(rec_path), rec_img)
         return rec_img, ev_a, ev_b
 
