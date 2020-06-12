@@ -146,7 +146,7 @@ class GenAllPairs:
         return rec_img
 
     def fuse(self, images: List[Image.Image]) -> np.ndarray:
-        merged = self._fusefunc(list(map(np.array, images)))[:, :, [2, 1, 0]]
+        merged = self._fusefunc([np.array(i) for i in images])[:, :, [2, 1, 0]]
         merged = np.clip(merged * 255, 0, 255).astype("uint8")
         return merged
 
