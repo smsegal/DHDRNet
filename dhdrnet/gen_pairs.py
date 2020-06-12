@@ -87,7 +87,6 @@ class GenAllPairs:
 
                     img_pairs = list(combinations(img_pool, r=2))
 
-                    # for ((im_a, ev_a), (im_b, ev_b)), metric in img_metric_product:
                     for reconstruction, ev_a, ev_b in tqdm(
                             executor.map(self.get_reconstruction, repeat(name), img_pairs, chunksize=40),
                             total=len(img_pairs),
@@ -126,7 +125,12 @@ class GenAllPairs:
                 cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
                 for ev in self.exposure_groups[exp_group]
             ]
-            gt_img = self.fuse(*image_inputs)
+            try:
+                gt_img = self.fuse(*image_inputs)
+            except Exception as e:
+                print(img_name)
+                print(e)
+                exit(1)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img, raw_fp
 
@@ -136,7 +140,8 @@ class GenAllPairs:
         if rec_path.exists():
             rec_img = np.array(Image.open(rec_path))
         else:
-            rec_img = self.fuse(im_a, im_b)
+            try:
+                rec_img = self.fuse(im_a, im_b)
             cv.imwrite(str(rec_path), rec_img)
         return rec_img, ev_a, ev_b
 
