@@ -11,7 +11,6 @@ import pandas as pd
 import rawpy
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
-
 # from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
@@ -61,18 +60,18 @@ class GenAllPairs:
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_out_path.mkdir(parents=True, exist_ok=True)
 
-        self._storepath = ROOT_DIR / "precomputed_data" / "store.h5"
+        # self._storepath = ROOT_DIR / "precomputed_data" / "store.csv"
 
-        self.store = pd.HDFStore(str(self._storepath))
+        self.store = ROOT_DIR / "precomputed_data" / "store.csv"
         self.store_key = "fusion_stats"
         self.stats = pd.DataFrame(
             data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
         )
-        self.store.put(self.store_key, self.stats, format="table")
+        # self.store.put(self.store_key, self.stats, format="table")
 
     def __call__(self):
         self.stats_dispatch_parallel()
-        print(f"computed all stats, saved in {self._storepath}")
+        print(f"computed all stats, saved in {self.store}")
 
     def stats_dispatch(self):
         stats = dict()
@@ -102,7 +101,8 @@ class GenAllPairs:
                     )
 
         df = pd.DataFrame.from_dict(stats)
-        self.store.append(self.store_key, df)
+        with self.store.open(mode="a") as s:
+            df.to_csv(s, index_label=False)
         return stats
 
     def get_exposures(self, image_name, exposures):
