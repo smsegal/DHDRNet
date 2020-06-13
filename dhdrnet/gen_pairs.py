@@ -1,9 +1,7 @@
 import argparse
 import operator as op
 from collections import defaultdict
-from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial, reduce
-from itertools import combinations, repeat
 from pathlib import Path
 from typing import Collection, List
 
@@ -11,31 +9,30 @@ import cv2 as cv
 import numpy as np
 import pandas as pd
 import rawpy
-from PIL import Image
 from more_itertools import flatten
+from more_itertools.more import distinct_combinations
+
 # from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
-from tqdm import tqdm
-from tqdm.contrib.concurrent import process_map
+from tqdm.contrib.concurrent import thread_map
 
 from dhdrnet.util import ROOT_DIR
 
 
 def main(args):
     generator = GenAllPairs(
-        ev_maximums=range(4, 8),
+        ev_maximums=range(*map(int, args.ev_range)),
         raw_path=Path(args.raw_path),
         gt_path=Path(args.gt_path),
         out_path=Path(args.out_path),
     )
-    generator(skip_exp=args.skip_exp)
+    generator()
 
 
 _ff = cv.createMergeMertens().process
 
 
 def fuse(*images: List[np.ndarray]) -> np.ndarray:
-    images = [np.array(img) for img in images]
     merged = _ff(images)
     merged = np.clip(merged * 255, 0, 255).astype("uint8")
     return merged
@@ -51,6 +48,8 @@ class GenAllPairs:
         self.exp_out_path = self.out_path / "exposures"
         self.reconstructed_out_path = self.out_path / "reconstructions"
         self.gt_out_path = self.out_path / "ground_truth"
+
+        self.image_names = [rf.stem for rf in self.raw_path.iterdir()]
 
         self.metricfuncs = {
             "mse": mean_squared_error,
@@ -71,111 +70,76 @@ class GenAllPairs:
         )
         self.store.put(self.store_key, self.stats, format="table")
 
-    def __call__(self, skip_exp=False):
-        if not skip_exp:
-            computed_paths = self.gen_exposures_dispatch()
-            print("computed all raws")
-        else:
-            print("skipped computing exp images, assumed already done")
-        stats = self.compute_stats()
+    def __call__(self):
+        self.stats_dispatch_parallel()
         print(f"computed all stats, saved in {self._storepath}")
 
-    def gen_exposures_dispatch(self):
-        raw_files = list(self.raw_path.iterdir())
-        return process_map(self.create_needed_exposures, raw_files, chunksize=40)
-
-    def compute_stats(self):
-        stats = defaultdict(list)
-        raw_files = list(self.raw_path.iterdir())
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            for e_idx, ev_group in enumerate(self.exposure_groups):
-                for (gt, raw_fp) in tqdm(
-                        map(
-                            self.get_ground_truth, raw_files, repeat(e_idx, len(raw_files))
-                        ),
-                        total=len(raw_files),
-                ):
-                    name = raw_fp.stem
-                    img_pool = self.get_exposures(name, ev_group)
-                    img_pairs = list(combinations(img_pool, r=2))
-
-                    stats = reduce(
-                        nested_dict_merge,
-                        executor.map(
-                            self.reconstruction_stats,
-                            img_pairs,
-                            repeat(gt),
-                            repeat(name),
-                        ),
-                    )
-
-                    df = pd.DataFrame.from_dict(stats)
-                    self.store.append(self.store_key, df)
-                    print(f"appended {name} to store!")
-
-    def reconstruction_stats(self, *args):
-        ((im_a, ev_a), (im_b, ev_b)), gt, name = args
-        reconstruction = self.get_reconstruction(name, im_a, ev_a, im_b, ev_b)
-        stats = defaultdict(list)
-        for metric in self.metrics:
-            stats["name"].append(name)
-            stats["metric"].append(metric)
-            stats["ev_a"].append(ev_a)
-            stats["ev_b"].append(ev_b)
-            stats["score"].append(self.metricfuncs[metric](gt, reconstruction))
+    def stats_dispatch(self):
+        stats = dict()
+        for i, image_name in enumerate(self.image_names):
+            stats = reduce(nested_dict_merge, [stats, self.compute_stats(image_name)])
         return stats
 
-    def create_needed_exposures(self, raw_fp):
+    def stats_dispatch_parallel(self):
+        stats = reduce(
+            nested_dict_merge, thread_map(self.compute_stats, self.image_names[:3])
+        )
+        return stats
+
+    def compute_stats(self, img_name):
+        stats = defaultdict(list)
+        for edx, ev_group in enumerate(self.exposure_groups):
+            ground_truth = self.get_ground_truth(img_name, ev_group)
+            for ev1, ev2 in distinct_combinations(ev_group, r=2):
+                reconstruction = self.get_reconstruction(img_name, ev1, ev2)
+                for metric in self.metrics:
+                    stats["name"].append(img_name)
+                    stats["metric"].append(metric)
+                    stats["ev1"].append(ev1)
+                    stats["ev2"].append(ev2)
+                    stats["score"].append(
+                        self.metricfuncs[metric](ground_truth, reconstruction)
+                    )
+
+        df = pd.DataFrame.from_dict(stats)
+        self.store.append(self.store_key, df)
+        return stats
+
+    def get_exposures(self, image_name, exposures):
+        raw_fp = self.raw_path / f"{image_name}.dng"
         computed_exposures = []
-        for ev in self.exposures:
-            image_path = self.out_path / "exposures" / f"{raw_fp.stem}[{ev}].png"
+        for ev in exposures:
+            image_path = self.exp_out_path / f"{image_name}[{ev}].png"
             if image_path.exists():
-                print(f"skipping previously generated: {image_path}")
+                # print(f"reading previously generated: {image_path}")
                 computed_exposures.append(ev)
+                yield cv.imread(str(image_path))
 
-        exposures = self.exposures - set(computed_exposures)
-        for image, ev in self.exposures_from_raw(raw_fp, exposures):
-            image.save(self.exp_out_path / f"{raw_fp.stem}[{ev}].png")
-        return raw_fp
+        exposures = set(exposures) - set(computed_exposures)
+        if len(exposures) > 0:
+            for image, ev in zip(self.exposures_from_raw(raw_fp, exposures), exposures):
+                yield image
+                cv.imwrite(str(self.exp_out_path / f"{image_name}[{ev}].png"), image)
 
-    def get_ground_truth(self, raw_fp, exp_group):
-        img_name = raw_fp.stem
-        gt_fp = self.gt_path / f"{img_name}.png"
+    def get_ground_truth(self, image_name, exp_group):
+        gt_fp = self.gt_path / f"{image_name}.png"
         if gt_fp.exists():
             gt_img = cv.imread(str(gt_fp))
         else:
-            image_inputs = [
-                cv.imread(str(self.exp_out_path / f"{img_name}[{ev}].png"))
-                for ev in self.exposure_groups[exp_group]
-            ]
-            try:
-                gt_img = fuse(*image_inputs)
-            except Exception as e:
-                print(img_name)
-                print(e)
-                exit(1)
+            image_inputs = self.get_exposures(image_name, exp_group)
+            gt_img = fuse(*image_inputs)
             cv.imwrite(str(gt_fp), gt_img)
-        return gt_img, raw_fp
+        return gt_img
 
-    def get_reconstruction(self, name, im_a, ev_a, im_b, ev_b):
-        rec_path = self.reconstructed_out_path / f"{name}[{ev_a}][{ev_b}].png"
+    def get_reconstruction(self, name, ev1, ev2):
+        rec_path = self.reconstructed_out_path / f"{name}[{ev1}][{ev2}].png"
         if rec_path.exists():
             rec_img = cv.imread(str(rec_path))
         else:
-            rec_img = fuse(im_a, im_b)
+            im1, im2 = self.get_exposures(name, [ev1, ev2])
+            rec_img = fuse(im1, im2)
             cv.imwrite(str(rec_path), rec_img)
         return rec_img
-
-    def get_exposures(self, name, ev_group):
-        # assume if first one doesnt exist, none do
-        exp_path = self.exp_out_path / f"{name}[{ev_group[0]}].png"
-        if exp_path.exists():
-            return [
-                (cv.imread(str(self.exp_out_path / f"{name}[{ev}].png")), ev)
-                for ev in ev_group
-            ]
-        else:
-            return self.exposures_from_raw(self.raw_path / f"{name}.dng", ev_group)
 
     @staticmethod
     def exposures_from_raw(raw_path: Path, exposures: Collection):
@@ -194,8 +158,13 @@ class GenAllPairs:
                 im = im + black_levels_tiled
                 im = np.minimum(im, 2 ** 16 - 1)
                 raw.raw_image[:, :] = im
-                postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)
-                yield Image.fromarray(postprocessed, "RGB"), exposure
+                postprocessed = raw.postprocess(
+                    use_camera_wb=True, no_auto_bright=True
+                )[:, :, [2, 1, 0]]
+                newsize = tuple(postprocessed.shape[:2] // np.array([10]))
+                yield cv.resize(
+                    postprocessed, dsize=newsize, interpolation=cv.INTER_AREA
+                )
 
 
 def nested_dict_merge(d1, d2):
@@ -219,10 +188,10 @@ def nested_dict_merge(d1, d2):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate stats and images")
 
-    parser.add_argument("raw_path", help="location of raw files")
-    parser.add_argument("gt_path", help="location of ground truth (merged) files")
-    parser.add_argument("--skip-exp", action="store_true")
     parser.add_argument("--out-path", "-o", help="where to save the processed files")
+    parser.add_argument("--ev-range", help="ev range to store", nargs=2, default=[4, 8])
+    parser.add_argument("--raw-path", help="location of raw files")
+    parser.add_argument("--gt-path", help="location of ground truth (merged) files")
 
     args = parser.parse_args()
     main(args)
