@@ -9,17 +9,27 @@
       "type": "python",
       "request": "launch",
       "program": "${workspaceRoot}/dhdrnet/data_gen.py",
-      "args": [
-        "-m",
-        "debevec"
-      ],
+      "args": ["-m", "debevec"],
       "console": "integratedTerminal"
     },
     {
       "name": "Python: model train",
       "type": "python",
       "request": "launch",
-      "module": "dhdrnet.train",
+      "module": "dhdrnet.train"
+    },
+    {
+      "name": "Python: gen pairs",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/dhdrnet/gen_pairs.py",
+      "args": [
+        "--out-path ${workspaceFolder}/data/new_processed",
+        "--ev-range 4 5",
+        "--raw-path ${workspaceFolder}/data/dngs",
+        "--gt-path ${workspaceFolder}/data/new_processed/ground_truth",
+      ],
+      "console": "integratedTerminal"
     }
   ]
 }
