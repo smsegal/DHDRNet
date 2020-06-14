@@ -81,7 +81,7 @@ class GenAllPairs:
 
     def stats_dispatch_parallel(self):
         stats = reduce(
-            nested_dict_merge, thread_map(self.compute_stats, self.image_names[:3])
+            nested_dict_merge, thread_map(self.compute_stats, self.image_names)
         )
         return stats
 
