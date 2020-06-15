@@ -11,6 +11,7 @@ import pandas as pd
 import rawpy
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
+
 # from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
@@ -35,6 +36,9 @@ def fuse(*images: List[np.ndarray]) -> np.ndarray:
     merged = _ff(images)
     merged = np.clip(merged * 255, 0, 255).astype("uint8")
     return merged
+
+
+mse_opt4 = bsdf4.groupby("metric").get_group("mse").pivot(columns="ev").drop("metric", axis=1)
 
 
 class GenAllPairs:
