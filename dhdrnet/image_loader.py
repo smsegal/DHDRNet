@@ -98,9 +98,9 @@ def read_hdr(path: Path) -> np.ndarray:
 
 
 def gen_multi_exposures(
-        img_path: Path, *exposure_values
+        img_path: Path, exposure_values
 ) -> Collection[np.ndarray]:
-    img_loaded = co.read_image(img_path)
+    img_loaded = co.read_image(str(img_path))
     exposures = [
         ch.adjust_exposure(img_loaded, exposure)
         for exposure in exposure_values

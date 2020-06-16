@@ -38,9 +38,6 @@ def fuse(*images: List[np.ndarray]) -> np.ndarray:
     return merged
 
 
-mse_opt4 = bsdf4.groupby("metric").get_group("mse").pivot(columns="ev").drop("metric", axis=1)
-
-
 class GenAllPairs:
     def __init__(self, ev_maximums, raw_path: Path, gt_path: Path, out_path: Path):
         self.exposure_groups = [np.linspace(-ev, ev, 5) for ev in ev_maximums]
