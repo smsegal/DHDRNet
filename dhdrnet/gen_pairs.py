@@ -9,9 +9,9 @@ import cv2 as cv
 import numpy as np
 import pandas as pd
 import rawpy
-from more_itertools import flatten
+import torch
 from more_itertools.more import distinct_combinations
-
+from perceptual_similarity import PerceptualLoss
 # from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
@@ -21,7 +21,8 @@ from dhdrnet.util import ROOT_DIR
 
 def main(args):
     generator = GenAllPairs(
-        ev_maximums=range(*map(int, args.ev_range)),
+        ev_max=args.ev_max,
+        step_size=args.step_size,
         raw_path=Path(args.raw_path),
         gt_path=Path(args.gt_path),
         out_path=Path(args.out_path),
@@ -32,16 +33,9 @@ def main(args):
 _ff = cv.createMergeMertens().process
 
 
-def fuse(*images: List[np.ndarray]) -> np.ndarray:
-    merged = _ff(images)
-    merged = np.clip(merged * 255, 0, 255).astype("uint8")
-    return merged
-
-
 class GenAllPairs:
-    def __init__(self, ev_maximums, raw_path: Path, gt_path: Path, out_path: Path):
-        self.exposure_groups = [np.linspace(-ev, ev, 5) for ev in ev_maximums]
-        self.exposures = set(sorted(flatten(self.exposure_groups)))
+    def __init__(self, ev_max, step_size, raw_path: Path, gt_path: Path, out_path: Path, store_name: str):
+        self.exposures = np.linspace(-ev_max, ev_max, step_size)
         self.raw_path = raw_path
         self.gt_path = gt_path
         self.out_path = out_path
@@ -54,6 +48,7 @@ class GenAllPairs:
         self.metricfuncs = {
             "mse": mean_squared_error,
             "ssim": partial(structural_similarity, multichannel=True),
+            "perceptual": perceptual_loss_metric
         }
         self.metrics = list(self.metricfuncs.keys())
 
@@ -61,14 +56,11 @@ class GenAllPairs:
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_out_path.mkdir(parents=True, exist_ok=True)
 
-        # self._storepath = ROOT_DIR / "precomputed_data" / "store.csv"
-
-        self.store = ROOT_DIR / "precomputed_data" / "store.csv"
+        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}.csv"
         self.store_key = "fusion_stats"
         self.stats = pd.DataFrame(
             data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
         )
-        # self.store.put(self.store_key, self.stats, format="table")
 
     def __call__(self):
         self.stats_dispatch_parallel()
@@ -82,24 +74,23 @@ class GenAllPairs:
 
     def stats_dispatch_parallel(self):
         stats = reduce(
-            nested_dict_merge, thread_map(self.compute_stats, self.image_names)
+            nested_dict_merge, thread_map(self.compute_stats, self.image_names[:3])
         )
         return stats
 
     def compute_stats(self, img_name):
         stats = defaultdict(list)
-        for edx, ev_group in enumerate(self.exposure_groups):
-            ground_truth = self.get_ground_truth(img_name, ev_group)
-            for ev1, ev2 in distinct_combinations(ev_group, r=2):
-                reconstruction = self.get_reconstruction(img_name, ev1, ev2)
-                for metric in self.metrics:
-                    stats["name"].append(img_name)
-                    stats["metric"].append(metric)
-                    stats["ev1"].append(ev1)
-                    stats["ev2"].append(ev2)
-                    stats["score"].append(
-                        self.metricfuncs[metric](ground_truth, reconstruction)
-                    )
+        ground_truth = self.get_ground_truth(img_name)
+        for ev1, ev2 in distinct_combinations(self.exposures, r=2):
+            reconstruction = self.get_reconstruction(img_name, ev1, ev2)
+            for metric in self.metrics:
+                stats["name"].append(img_name)
+                stats["metric"].append(metric)
+                stats["ev1"].append(ev1)
+                stats["ev2"].append(ev2)
+                stats["score"].append(
+                    self.metricfuncs[metric](ground_truth, reconstruction)
+                )
 
         df = pd.DataFrame.from_dict(stats)
         with self.store.open(mode="a") as s:
@@ -186,13 +177,32 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
+def fuse(*images: List[np.ndarray]) -> np.ndarray:
+    merged = _ff(images)
+    merged = np.clip(merged * 255, 0, 255).astype("uint8")
+    return merged
+
+
+def perceptual_loss_metric(ima, imb):
+    ima_t, imb_t = map(torch.tensor, (ima, imb))
+    # expand dims for batch
+    ima_t = ima_t[None, :]
+    imb_t = imb_t[None, :]
+    use_gpu = torch.cuda.is_available()
+    model = PerceptualLoss(model='net-lin', net='alex', use_gpu=use_gpu, gpu_ids=[0])
+    d = model.forward(ima_t, imb_t)
+    return d
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate stats and images")
 
     parser.add_argument("--out-path", "-o", help="where to save the processed files")
     parser.add_argument("--ev-range", help="ev range to store", nargs=2, default=[4, 8])
+    parser.add_argument("--step-size", help="steps between ev stops", default=0.5)
     parser.add_argument("--raw-path", help="location of raw files")
     parser.add_argument("--gt-path", help="location of ground truth (merged) files")
+    parser.add_argument("--store-name", help="filename to store data in", default="store")
 
     args = parser.parse_args()
     main(args)

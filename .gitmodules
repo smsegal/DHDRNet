@@ -1,3 +1,0 @@
-[submodule "submodules/PerceptualSimilarity"]
-	path = submodules/PerceptualSimilarity
-	url = git@github.com:smsegal/PerceptualSimilarity.git
