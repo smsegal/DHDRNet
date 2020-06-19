@@ -192,7 +192,7 @@ def PerceptualMetric(model="net-lin", net="alex"):
 
     def perceptual_loss_metric(ima, imb):
         ima_t, imb_t = map(im2tensor, [ima, imb])
-        d = model.forward(ima_t, imb_t).detach().numpy().flatten()[0]
+        d = model.forward(ima_t, imb_t).detach().cpu().numpy().flatten()[0]
         return d
 
     return perceptual_loss_metric
