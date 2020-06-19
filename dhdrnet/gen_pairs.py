@@ -12,6 +12,8 @@ import rawpy
 import torch
 from more_itertools.more import distinct_combinations
 from perceptual_similarity import PerceptualLoss
+from perceptual_similarity.util.util import im2tensor
+
 # from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
@@ -21,11 +23,10 @@ from dhdrnet.util import ROOT_DIR
 
 def main(args):
     generator = GenAllPairs(
-        ev_max=args.ev_max,
-        step_size=args.step_size,
         raw_path=Path(args.raw_path),
         gt_path=Path(args.gt_path),
         out_path=Path(args.out_path),
+        store_name=args.store_name,
     )
     generator()
 
@@ -34,8 +35,10 @@ _ff = cv.createMergeMertens().process
 
 
 class GenAllPairs:
-    def __init__(self, ev_max, step_size, raw_path: Path, gt_path: Path, out_path: Path, store_name: str):
-        self.exposures = np.linspace(-ev_max, ev_max, step_size)
+    def __init__(
+        self, raw_path: Path, gt_path: Path, out_path: Path, store_name: str,
+    ):
+        self.exposures = np.arange(-6, 6, 0.5)
         self.raw_path = raw_path
         self.gt_path = gt_path
         self.out_path = out_path
@@ -48,7 +51,7 @@ class GenAllPairs:
         self.metricfuncs = {
             "mse": mean_squared_error,
             "ssim": partial(structural_similarity, multichannel=True),
-            "perceptual": perceptual_loss_metric
+            "perceptual": PerceptualMetric(),
         }
         self.metrics = list(self.metricfuncs.keys())
 
@@ -74,7 +77,7 @@ class GenAllPairs:
 
     def stats_dispatch_parallel(self):
         stats = reduce(
-            nested_dict_merge, thread_map(self.compute_stats, self.image_names[:3])
+            nested_dict_merge, thread_map(self.compute_stats, self.image_names)
         )
         return stats
 
@@ -113,12 +116,12 @@ class GenAllPairs:
                 yield image
                 cv.imwrite(str(self.exp_out_path / f"{image_name}[{ev}].png"), image)
 
-    def get_ground_truth(self, image_name, exp_group):
+    def get_ground_truth(self, image_name):
         gt_fp = self.gt_path / f"{image_name}.png"
         if gt_fp.exists():
             gt_img = cv.imread(str(gt_fp))
         else:
-            image_inputs = self.get_exposures(image_name, exp_group)
+            image_inputs = self.get_exposures(image_name, self.exposures)
             gt_img = fuse(*image_inputs)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img
@@ -183,26 +186,27 @@ def fuse(*images: List[np.ndarray]) -> np.ndarray:
     return merged
 
 
-def perceptual_loss_metric(ima, imb):
-    ima_t, imb_t = map(torch.tensor, (ima, imb))
-    # expand dims for batch
-    ima_t = ima_t[None, :]
-    imb_t = imb_t[None, :]
+def PerceptualMetric(model="net-lin", net="alex"):
     use_gpu = torch.cuda.is_available()
-    model = PerceptualLoss(model='net-lin', net='alex', use_gpu=use_gpu, gpu_ids=[0])
-    d = model.forward(ima_t, imb_t)
-    return d
+    model = PerceptualLoss(model=model, net=net, use_gpu=use_gpu, gpu_ids=[0])
+
+    def perceptual_loss_metric(ima, imb):
+        ima_t, imb_t = map(im2tensor, [ima, imb])
+        d = model.forward(ima_t, imb_t).detach().numpy().flatten()[0]
+        return d
+
+    return perceptual_loss_metric
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate stats and images")
 
     parser.add_argument("--out-path", "-o", help="where to save the processed files")
-    parser.add_argument("--ev-range", help="ev range to store", nargs=2, default=[4, 8])
-    parser.add_argument("--step-size", help="steps between ev stops", default=0.5)
     parser.add_argument("--raw-path", help="location of raw files")
     parser.add_argument("--gt-path", help="location of ground truth (merged) files")
-    parser.add_argument("--store-name", help="filename to store data in", default="store")
+    parser.add_argument(
+        "--store-name", help="filename to store data in", default="store"
+    )
 
     args = parser.parse_args()
     main(args)
