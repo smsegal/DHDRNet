@@ -20,7 +20,7 @@ recordclass = "^0.13.2"
 pandas = "^1.0.4"
 tables = "^3.6.1"
 sewar = "^0.4.3"
-perceptual-similarity-pytorch = {path = "../PerceptualSimilarity"}
+perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilarity.git"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
