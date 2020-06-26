@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Collection, List
 
 import cv2 as cv
+import exifread
 import numpy as np
 import pandas as pd
 import rawpy
@@ -112,7 +113,7 @@ class GenAllPairs:
 
         exposures = set(exposures) - set(computed_exposures)
         if len(exposures) > 0:
-            for image, ev in zip(self.exposures_from_raw(raw_fp, exposures), exposures):
+            for image, ev in zip(exposures_from_raw(raw_fp, exposures), exposures):
                 yield image
                 cv.imwrite(str(self.exp_out_path / f"{image_name}[{ev}].png"), image)
 
@@ -136,30 +137,36 @@ class GenAllPairs:
             cv.imwrite(str(rec_path), rec_img)
         return rec_img
 
-    @staticmethod
-    def exposures_from_raw(raw_path: Path, exposures: Collection):
-        with rawpy.imread(str(raw_path)) as raw:
-            black_levels = raw.black_level_per_channel
-            raw_orig = raw.raw_image.copy()
 
-            # tiled to add to the right channels of the bayer image
-            black_levels_tiled = np.tile(
-                black_levels, (raw_orig.shape // np.array([1, 4]))
-            )
-            raw_im = np.maximum(raw_orig, black_levels_tiled) - black_levels_tiled
+def exposures_from_raw(
+    raw_path: Path, exposures: Collection, baseline_ev=0.0, for_opencv=True
+):
+    # opencv needs color channels in BGR vs RGB for idk... everything? else
+    if for_opencv:
+        channel_swapper = [2, 1, 0]
+    else:
+        channel_swapper = [0, 1, 2]
 
-            for exposure in exposures:
-                im = raw_im * (2 ** exposure)
-                im = im + black_levels_tiled
-                im = np.minimum(im, 2 ** 16 - 1)
-                raw.raw_image[:, :] = im
-                postprocessed = raw.postprocess(
-                    use_camera_wb=True, no_auto_bright=True
-                )[:, :, [2, 1, 0]]
-                newsize = tuple(postprocessed.shape[:2] // np.array([10]))
-                yield cv.resize(
-                    postprocessed, dsize=newsize, interpolation=cv.INTER_AREA
-                )
+    # adjust exposures to account for the given baseline
+    exposures = exposures - baseline_ev
+    with rawpy.imread(str(raw_path)) as raw:
+        black_levels = raw.black_level_per_channel
+        raw_orig = raw.raw_image.copy()
+
+        # tiled to add to the right channels of the bayer image
+        black_levels_tiled = np.tile(black_levels, (raw_orig.shape // np.array([1, 4])))
+        raw_im = np.maximum(raw_orig, black_levels_tiled) - black_levels_tiled
+
+        for exposure in exposures:
+            im = raw_im * (2 ** exposure)
+            im = im + black_levels_tiled
+            im = np.minimum(im, 2 ** 16 - 1)
+            raw.raw_image[:, :] = im
+            postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
+                :, :, channel_swapper
+            ]
+            newsize = tuple(postprocessed.shape[:2] // np.array([8]))
+            yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
 
 def nested_dict_merge(d1, d2):
@@ -196,6 +203,15 @@ def PerceptualMetric(model="net-lin", net="alex"):
         return d
 
     return perceptual_loss_metric
+
+
+def ev_from_exif(img_path: Path):
+    tags = exifread.process_file(img_path.open("rb"), details=False)
+    fnumber = tags["EXIF FNumber"].values[0].num
+    shutter_speed_ratio = tags["EXIF ShutterSpeedValue"].values[0]
+    return (2 * np.log2(fnumber)) + np.log2(
+        shutter_speed_ratio.den / shutter_speed_ratio.num
+    )
 
 
 if __name__ == "__main__":
