@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import operator as op
 from collections import defaultdict
 from functools import partial, reduce
@@ -25,27 +26,22 @@ from dhdrnet.util import ROOT_DIR
 def main(args):
     generator = GenAllPairs(
         raw_path=Path(args.raw_path),
-        gt_path=Path(args.gt_path),
         out_path=Path(args.out_path),
         store_name=args.store_name,
     )
     generator()
 
 
-_ff = cv.createMergeMertens().process
-
-
 class GenAllPairs:
     def __init__(
-        self, raw_path: Path, gt_path: Path, out_path: Path, store_name: str,
+        self, raw_path: Path, out_path: Path, store_name: str,
     ):
         self.exposures = np.arange(-6, 6, 0.5)
         self.raw_path = raw_path
-        self.gt_path = gt_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
         self.reconstructed_out_path = self.out_path / "reconstructions"
-        self.gt_out_path = self.out_path / "ground_truth"
+        self.gt_path = self.out_path / "ground_truth"
 
         self.image_names = [rf.stem for rf in self.raw_path.iterdir()]
 
@@ -58,9 +54,10 @@ class GenAllPairs:
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
-        self.gt_out_path.mkdir(parents=True, exist_ok=True)
+        self.gt_path.mkdir(parents=True, exist_ok=True)
 
-        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}.csv"
+        timestamp = datetime.datetime.now().strftime("%FT%R")
+        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}_{timestamp}.csv"
         self.store_key = "fusion_stats"
         self.stats = pd.DataFrame(
             data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
@@ -138,17 +135,15 @@ class GenAllPairs:
         return rec_img
 
 
-def exposures_from_raw(
-    raw_path: Path, exposures: Collection, baseline_ev=0.0, for_opencv=True
-):
+def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
     # opencv needs color channels in BGR vs RGB for idk... everything? else
     if for_opencv:
         channel_swapper = [2, 1, 0]
     else:
         channel_swapper = [0, 1, 2]
 
-    # adjust exposures to account for the given baseline
-    exposures = exposures - baseline_ev
+    baseline_ev = ev_from_exif(raw_path)
+
     with rawpy.imread(str(raw_path)) as raw:
         black_levels = raw.black_level_per_channel
         raw_orig = raw.raw_image.copy()
@@ -158,7 +153,8 @@ def exposures_from_raw(
         raw_im = np.maximum(raw_orig, black_levels_tiled) - black_levels_tiled
 
         for exposure in exposures:
-            im = raw_im * (2 ** exposure)
+            # adjust exposures to account for the given baseline
+            im = raw_im * (2 ** (exposure - baseline_ev))
             im = im + black_levels_tiled
             im = np.minimum(im, 2 ** 16 - 1)
             raw.raw_image[:, :] = im
@@ -167,6 +163,15 @@ def exposures_from_raw(
             ]
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
+
+
+def ev_from_exif(img_path: Path):
+    tags = exifread.process_file(img_path.open("rb"), details=False)
+    fnumber = tags["EXIF FNumber"].values[0].num
+    shutter_speed_ratio = tags["EXIF ShutterSpeedValue"].values[0]
+    return (2 * np.log2(fnumber)) + np.log2(
+        shutter_speed_ratio.den / shutter_speed_ratio.num
+    )
 
 
 def nested_dict_merge(d1, d2):
@@ -187,6 +192,10 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
+def _ff(images):
+    return cv.createMergeMertens().process(images)
+
+
 def fuse(*images: List[np.ndarray]) -> np.ndarray:
     merged = _ff(images)
     merged = np.clip(merged * 255, 0, 255).astype("uint8")
@@ -205,21 +214,11 @@ def PerceptualMetric(model="net-lin", net="alex"):
     return perceptual_loss_metric
 
 
-def ev_from_exif(img_path: Path):
-    tags = exifread.process_file(img_path.open("rb"), details=False)
-    fnumber = tags["EXIF FNumber"].values[0].num
-    shutter_speed_ratio = tags["EXIF ShutterSpeedValue"].values[0]
-    return (2 * np.log2(fnumber)) + np.log2(
-        shutter_speed_ratio.den / shutter_speed_ratio.num
-    )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate stats and images")
 
     parser.add_argument("--out-path", "-o", help="where to save the processed files")
     parser.add_argument("--raw-path", help="location of raw files")
-    parser.add_argument("--gt-path", help="location of ground truth (merged) files")
     parser.add_argument(
         "--store-name", help="filename to store data in", default="store"
     )
