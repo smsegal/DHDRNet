@@ -3,14 +3,14 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
-from contextlib import (ExitStack, contextmanager, redirect_stderr,
-                        redirect_stdout)
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
 import numpy as np
+from PIL.Image import Image
 
 T = TypeVar("T")
 
@@ -176,3 +176,11 @@ def suppress(out=True, err=False):
             if err:
                 stack.enter_context(redirect_stderr(null))
             yield
+
+
+def get_image_for_record(record):
+    """record contains: score -> int
+                        ev -> (int,int)
+                        name -> str
+   """
+    return Image.open(DATA_DIR / f"{record.name}[{ev[0]}][{ev[1]}].png")
