@@ -16,7 +16,6 @@ from more_itertools.more import distinct_combinations
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 
-# from sewar import mse, msssim, ssim
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
 
