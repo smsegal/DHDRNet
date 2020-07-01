@@ -173,6 +173,11 @@ def ev_from_exif(img_path: Path):
     )
 
 
+def iso_from_exif(img_path: Path):
+    tags = exifread.process_file(img_path.open("rb"), details=False)
+    return tags["EXIF ISOSpeedRatings"].values[0]
+
+
 def nested_dict_merge(d1, d2):
     merged = dict()
 
@@ -202,8 +207,9 @@ def fuse(*images: List[np.ndarray]) -> np.ndarray:
 
 
 def PerceptualMetric(model="net-lin", net="alex"):
-    use_gpu = torch.cuda.is_available()
-    model = PerceptualLoss(model=model, net=net, use_gpu=use_gpu, gpu_ids=[0])
+    model = PerceptualLoss(
+        model=model, net=net, use_gpu=torch.cuda.is_available(), gpu_ids=[0]
+    )
 
     def perceptual_loss_metric(ima, imb):
         ima_t, imb_t = map(im2tensor, [ima, imb])
