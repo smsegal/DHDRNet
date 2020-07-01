@@ -4,13 +4,16 @@ import random
 from collections import defaultdict
 from collections.abc import Iterable as It
 from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
+from itertools import cycle
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
+import cv2 as cv
 import numpy as np
-from PIL.Image import Image
+from more_itertools import flatten
+from PIL import Image
 
 T = TypeVar("T")
 
@@ -178,9 +181,56 @@ def suppress(out=True, err=False):
             yield
 
 
-def get_image_for_record(record):
-    """record contains: score -> int
-                        ev -> (int,int)
-                        name -> str
-   """
-    return Image.open(DATA_DIR / f"{record.name}[{ev[0]}][{ev[1]}].png")
+def get_image_pair_for_record(record):
+    # print(record)
+    ev = record["ev"]
+    name = record["name"]
+    reconstruction = (
+        DATA_DIR
+        / "correct_exposures"
+        / "reconstructions"
+        / f"{name}[{ev[0]}][{ev[1]}].png"
+    )
+    ground_truth = DATA_DIR / "correct_exposures" / "ground_truth" / f"{name}.png"
+    return flatten([map(Image.open, [reconstruction, ground_truth]), name])
+
+
+def topn_unique(df, key, n, ascending=True):
+    sdf = df.sort_values(by=key, ascending=ascending).reset_index()
+    topn = []
+    prev_name = ""
+    for (idx, record) in sdf.iterrows():
+        if len(topn) >= n:
+            break
+
+        if prev_name == record["name"]:
+            continue
+        else:
+            topn.append(record)
+            prev_name = record["name"]
+    return topn
+
+
+def best_worse_metric(dfg, metric, n, save_path=None):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import ImageGrid
+
+    df = dfg.get_group(metric)
+    if metric == "ssim":
+        df = df.copy()
+        df["score"] = 1 - df["score"]
+    topn, botn = [topn_unique(df, "score", n=5, ascending=b) for b in [True, False]]
+    # plt.tight_layout()
+    for taken, goodbad in zip([topn, botn], ["Best", "Worst"]):
+        for reconstruction, gt, name in map(get_image_pair_for_record, taken):
+            fig = plt.figure()
+            grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1, label_mode="L")
+            for ax, im, label in zip(
+                grid, [reconstruction, gt], ["Reconstruction", "Ground Truth"]
+            ):
+                ax.imshow(im)
+                ax.set_xlabel(label)
+
+            fig.suptitle(f"{goodbad} {metric} {name}")
+            if save_path is not None:
+                plt.savefig(save_path / f"{name}_{goodbad}")
