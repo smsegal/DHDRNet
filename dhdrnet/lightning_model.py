@@ -1,24 +1,22 @@
 from math import ceil, floor
-from typing import List, Union, Dict
+from typing import Dict, List, Union
 
 import torchvision
 from pytorch_msssim import ssim
+import torch
 from torch import Tensor
 from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
-from torchvision import transforms, models
+from torchvision import models, transforms
 
 from dhdrnet.Dataset import HDRDataset
-from dhdrnet.colour_utils import YPbPrColorSpace
 from dhdrnet.reconstruction import reconstruct_hdr_from_pred
-from dhdrnet.unet_components import *
 from dhdrnet.util import DATA_DIR
 
 
 class DHDRNet(LightningModule):
     def __init__(self):
         super(DHDRNet, self).__init__()
-        self.colour_space = YPbPrColorSpace()
 
         num_classes = 4
         self.inner_model = models.squeezenet1_1(
@@ -91,10 +89,6 @@ class DHDRNet(LightningModule):
             exposure_paths, ground_truth, preds
         ).type_as(mid_exposure)
 
-        # rc_yuv, gt_yuv = (
-        #     self.colour_space.from_rgb(im_batch)
-        #     for im_batch in [reconstructed_hdr, ground_truth]
-        # )
 
         loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)

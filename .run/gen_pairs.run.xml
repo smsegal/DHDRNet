@@ -13,7 +13,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dhdrnet/gen_pairs.py" />
-    <option name="PARAMETERS" value="--raw-path data/dngs --gt-path data/new_processed3/ground_truth --out-path data/new_processed3 --ev-range 4 5 --store-name store_perceptual" />
+    <option name="PARAMETERS" value="--raw-path data/dngs --out-path data/new_processed4 --store-name store_perceptual4 --single-thread" />
     <option name="SHOW_COMMAND_LINE" value="true" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

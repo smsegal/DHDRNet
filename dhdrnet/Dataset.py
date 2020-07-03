@@ -5,6 +5,8 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
+from more_itertools.recipes import flatten
 
 
 class HDRDataset(Dataset):
@@ -63,40 +65,43 @@ class LUTDataset(Dataset):
     def __init__(
         self,
         choice_path: Path,
-        stats_path: Path,
-        img_dir,
-        ev_range,
-        transform,
+        gt_path: Path,
+        name_list,
+        transform=transforms.ToTensor(),
         metric="mse",
     ):
-        self.img_dir = img_dir
+        self.exposure_path = exposure_path
         self.transform = transform
-        self.ev_cat = str(ev_range)
-        self.opt_choices = (
-            pd.read_csv(choice_path)
-            .set_index("name")
-            .sort_index()
-            .groupby("metric")
-            .get_group(metric)
-        )
-        self.stats = pd.read_csv(stats_path).set_index("name")
-        self.names = pd.Series(self.opt_choices.index)
 
-        self._length = len(self)  # cache it
-        self.labelindices = _ev_to_index(ev_range)
+        names = flatten(pd.read_csv(name_list, header=None).to_numpy())
+        df = pd.read_csv(choice_path).set_index("name")
+        # ev 0
+        baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
+        baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
+            lambda evs: [e for e in evs if e != 0][0], axis=1
+        )
+        baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
+        by_ev = baseline_df.pivot_table(
+            index="name", columns=["metric", "ev"], values="score"
+        ).loc[names]
+        self.opt_choices = by_ev[metric].idxmin(axis=1)
+        self.metric = metric
+        self.data = by_ev
+        self.names = pd.Series(self.data.index)
 
     def __len__(self):
         return len(self.names)
 
     def __getitem__(self, index):
-        if index >= self._length:
+        if index >= len(self):
             raise IndexError()
 
+        label = self.opt_choices[index]
+        stats = self.data[self.metric].iloc[index]
         img_name = self.names[index]
-        ev = self.opt_choices.loc[img_name, self.ev_cat]
-        label = self.labelindices[ev]
-        mid_exp = self.transform(Image.open(self.img_dir / f"{img_name}.png"))
-        stats = self.stats.loc[img_name]
+        mid_exp = self.transform(
+            Image.open(self.exposure_path / f"{img_name}[0.0].png")
+        )
         return mid_exp, label, stats
 
 

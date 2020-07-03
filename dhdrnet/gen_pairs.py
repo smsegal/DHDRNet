@@ -27,13 +27,14 @@ def main(args):
         raw_path=Path(args.raw_path),
         out_path=Path(args.out_path),
         store_name=args.store_name,
+        single_threaded=args.single_thread
     )
     generator()
 
 
 class GenAllPairs:
     def __init__(
-        self, raw_path: Path, out_path: Path, store_name: str,
+            self, raw_path: Path, out_path: Path, store_name: str, single_threaded
     ):
         self.exposures = np.arange(-6, 6, 0.5)
         self.raw_path = raw_path
@@ -55,15 +56,18 @@ class GenAllPairs:
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_path.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.datetime.now().strftime("%FT%R")
-        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}_{timestamp}.csv"
-        self.store_key = "fusion_stats"
+        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}.csv"
         self.stats = pd.DataFrame(
             data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
         )
 
+        self.single_threaded = single_threaded
+
     def __call__(self):
-        self.stats_dispatch_parallel()
+        if self.single_threaded:
+            self.stats_dispatch()
+        else:
+            self.stats_dispatch_parallel()
         print(f"computed all stats, saved in {self.store}")
 
     def stats_dispatch(self):
@@ -93,8 +97,12 @@ class GenAllPairs:
                 )
 
         df = pd.DataFrame.from_dict(stats)
-        with self.store.open(mode="a") as s:
-            df.to_csv(s, index_label=False)
+        if self.store.exists():
+            header = None
+        else:
+            header = df.columns
+
+        df.to_csv(self.store, mode="a", header=header)
         return stats
 
     def get_exposures(self, image_name, exposures):
@@ -155,11 +163,11 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
             # adjust exposures to account for the given baseline
             im = raw_im * (2 ** (exposure - baseline_ev))
             im = im + black_levels_tiled
-            im = np.minimum(im, 2 ** 16 - 1)
+            im = np.minimum(im, (2 ** 16) - 1)
             raw.raw_image[:, :] = im
             postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
-                :, :, channel_swapper
-            ]
+                            :, :, channel_swapper
+                            ]
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -227,6 +235,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--store-name", help="filename to store data in", default="store"
     )
+    parser.add_argument("--single-thread", help="single threaded mode", action="store_true")
 
     args = parser.parse_args()
     main(args)
