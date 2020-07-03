@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 
 import torchvision
 from pytorch_msssim import ssim
+from pytorch_lightning.core.lightning import LightningModule
 import torch
 from torch import Tensor
 from torch.optim import Adam

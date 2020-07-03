@@ -65,7 +65,7 @@ class LUTDataset(Dataset):
     def __init__(
         self,
         choice_path: Path,
-        gt_path: Path,
+        exposure_path: Path,
         name_list,
         transform=transforms.ToTensor(),
         metric="mse",
@@ -102,7 +102,7 @@ class LUTDataset(Dataset):
         mid_exp = self.transform(
             Image.open(self.exposure_path / f"{img_name}[0.0].png")
         )
-        return mid_exp, label, stats
+        return mid_exp, label, stats.to_numpy()
 
 
 def _ev_to_index(ev_range):

@@ -37,18 +37,20 @@ class DHDRNet(LightningModule):
             ]
         )
         trainval_data = LUTDataset(
-            ROOT_DIR / "precomputed_data" / "train.choices.csv",
-            ROOT_DIR / "precomputed_data" / "train.stats.csv",
-            img_dir=DATA_DIR / "merged",
-            ev_range=4.0,  # keys are floats converted to strings (dumb i know)
+            choice_path=ROOT_DIR
+            / "precomputed_data"
+            / "store_exposure_correct_cleaned.csv",
+            exposure_path=DATA_DIR / "correct_exposures" / "exposures",
+            name_list=ROOT_DIR / "train.txt",
             transform=transform,
         )
 
         test_data = LUTDataset(
-            ROOT_DIR / "precomputed_data" / "test.choices.csv",
-            ROOT_DIR / "precomputed_data" / "test.stats.csv",
-            img_dir=DATA_DIR / "merged",
-            ev_range=4.0,
+            choice_path=ROOT_DIR
+            / "precomputed_data"
+            / "store_exposure_correct_cleaned.csv",
+            exposure_path=DATA_DIR / "correct_exposures" / "exposures",
+            name_list=ROOT_DIR / "test.txt",
             transform=transform,
         )
         train_val_ratio = 0.8
