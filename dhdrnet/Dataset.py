@@ -102,10 +102,12 @@ class LUTDataset(Dataset):
         mid_exp = self.transform(
             Image.open(self.exposure_path / f"{img_name}[0.0].png")
         )
-        return mid_exp, label, stats.to_numpy()
-
+        return mid_exp, [_ev_to_index(l,) for l in label] , stats.to_numpy()
 
 def _ev_to_index(ev_range):
+     pass
+
+def _ev_to_index_old(ev_range):
     labels = {}
     for i, ev in enumerate(np.linspace(-ev_range, ev_range, 5)):
         if ev == 0:

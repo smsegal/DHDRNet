@@ -78,7 +78,7 @@ class DHDRNet(LightningModule):
         outputs = self(mid_exposure)
         _, preds = torch.max(outputs, 1)
 
-        loss = self.criterion(outputs, label)
+        loss = self.criterion(preds, label)
         # loss = 1 - ssim_score
         return loss, stats
 

@@ -34,9 +34,9 @@ def main(args):
 
 class GenAllPairs:
     def __init__(
-            self, raw_path: Path, out_path: Path, store_name: str, single_threaded
+            self, raw_path: Path, out_path: Path, store_name: str, single_threaded: bool
     ):
-        self.exposures = np.arange(-6, 6, 0.5)
+        self.exposures = np.arange(-3, 4.5, 0.25)
         self.raw_path = raw_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
