@@ -223,7 +223,7 @@ def best_worse_metric(dfg, metric, n, save_path=None):
     # plt.tight_layout()
     for taken, goodbad in zip([topn, botn], ["Best", "Worst"]):
         for reconstruction, gt, name in map(get_image_pair_for_record, taken):
-            fig = plt.figure()
+            fig, axs = plt.subplots()
             grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1, label_mode="L")
             for ax, im, label in zip(
                 grid, [reconstruction, gt], ["Reconstruction", "Ground Truth"]
@@ -231,6 +231,6 @@ def best_worse_metric(dfg, metric, n, save_path=None):
                 ax.imshow(im)
                 ax.set_xlabel(label)
 
-            fig.suptitle(f"{goodbad} {metric} {name}")
+            axs.set_title(f"{goodbad} {metric} {name}")
             if save_path is not None:
                 plt.savefig(save_path / f"{name}_{goodbad}")
