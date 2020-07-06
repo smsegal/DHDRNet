@@ -13,6 +13,7 @@ import pandas as pd
 import rawpy
 import torch
 from more_itertools.more import distinct_combinations
+from itertools import product
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 
@@ -26,17 +27,17 @@ def main(args):
     generator = GenAllPairs(
         raw_path=Path(args.raw_path),
         out_path=Path(args.out_path),
-        store_name=args.store_name,
-        single_threaded=args.single_thread
+        store_path=Path(args.store_path),
+        single_threaded=args.single_thread,
     )
     generator()
 
 
 class GenAllPairs:
     def __init__(
-            self, raw_path: Path, out_path: Path, store_name: str, single_threaded: bool
+        self, raw_path: Path, out_path: Path, store_path: Path, single_threaded: bool
     ):
-        self.exposures = np.arange(-3, 4.5, 0.25)
+        self.exposures = np.arange(-3, 6.25, 0.25)
         self.raw_path = raw_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
@@ -56,11 +57,17 @@ class GenAllPairs:
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_path.mkdir(parents=True, exist_ok=True)
 
-        self.store = ROOT_DIR / "precomputed_data" / f"{store_name}.csv"
-        self.stats = pd.DataFrame(
-            data=None, columns=["name", "metric", "ev_a", "ev_b", "score"]
-        )
-
+        self.store_path = store_path
+        if store_path.is_file():
+            self.store = pd.read_csv(
+                store_path, usecols=["name", "metric", "ev1", "ev2", "score"]
+            )
+        else:
+            self.store = pd.DataFrame(
+                data=None, columns=["name", "metric", "ev1", "ev2", "score"]
+            )
+            self.store_path.parent.mkdir(parents=True, exist_ok=True)
+        
         self.single_threaded = single_threaded
 
     def __call__(self):
@@ -84,25 +91,38 @@ class GenAllPairs:
 
     def compute_stats(self, img_name):
         stats = defaultdict(list)
-        ground_truth = self.get_ground_truth(img_name)
-        for ev1, ev2 in distinct_combinations(self.exposures, r=2):
-            reconstruction = self.get_reconstruction(img_name, ev1, ev2)
-            for metric in self.metrics:
-                stats["name"].append(img_name)
-                stats["metric"].append(metric)
-                stats["ev1"].append(ev1)
-                stats["ev2"].append(ev2)
-                stats["score"].append(
-                    self.metricfuncs[metric](ground_truth, reconstruction)
-                )
+        ev_combinations = distinct_combinations(self.exposures, r=2)
 
-        df = pd.DataFrame.from_dict(stats)
-        if self.store.exists():
-            header = None
-        else:
-            header = df.columns
+        options_df = pd.DataFrame.from_records(
+            product([img_name], ev_combinations, self.metrics), columns=["name", "ev", "metric"]
+        )
+        options_df["ev1"] = options_df["ev"].apply(lambda d: d[0])
+        options_df["ev2"] = options_df["ev"].apply(lambda d: d[1])
+        im_stats = self.store[self.store["name"] == img_name]
 
-        df.to_csv(self.store, mode="a", header=header)
+        remaining: pd.DataFrame = pd.concat([im_stats, options_df]).drop_duplicates(
+            keep=False, subset=["name", "ev1", "ev2", "metric"]
+        ).drop(columns=["ev", "score"])
+
+        for name, ev1, ev2, metric in remaining.itertuples(index=False):
+            ground_truth = self.get_ground_truth(name)
+            reconstruction = self.get_reconstruction(name, ev1, ev2)
+            stats["name"].append(img_name)
+            stats["metric"].append(metric)
+            stats["ev1"].append(ev1)
+            stats["ev2"].append(ev2)
+            stats["score"].append(
+                self.metricfuncs[metric](ground_truth, reconstruction)
+            )
+
+        if len(remaining):
+            df = pd.DataFrame.from_dict(stats)
+            if self.store_path.exists():
+                header = None
+            else:
+                header = df.columns
+
+            df.to_csv(self.store_path, mode="a", header=header)
         return stats
 
     def get_exposures(self, image_name, exposures):
@@ -166,8 +186,8 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
             im = np.minimum(im, (2 ** 16) - 1)
             raw.raw_image[:, :] = im
             postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
-                            :, :, channel_swapper
-                            ]
+                :, :, channel_swapper
+            ]
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -227,15 +247,32 @@ def PerceptualMetric(model="net-lin", net="alex"):
     return perceptual_loss_metric
 
 
+def _present(df, name, metric, ev1, ev2):
+    if len(df) > 0:
+        record = df[
+            (df["metric"] == metric)
+            & (df["ev1"] == ev1)
+            & (df["ev2"] == ev2)
+            & (df["name"] == name)
+        ]
+        return len(record)
+    else:
+        return False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate stats and images")
 
     parser.add_argument("--out-path", "-o", help="where to save the processed files")
     parser.add_argument("--raw-path", help="location of raw files")
     parser.add_argument(
-        "--store-name", help="filename to store data in", default="store"
+        "--store-path",
+        help="file to store data in (created if does not exist)",
+        default="store",
     )
-    parser.add_argument("--single-thread", help="single threaded mode", action="store_true")
+    parser.add_argument(
+        "--single-thread", help="single threaded mode", action="store_true"
+    )
 
     args = parser.parse_args()
     main(args)
