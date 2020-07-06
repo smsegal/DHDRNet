@@ -104,7 +104,11 @@ class GenAllPairs:
             keep=False, subset=["name", "ev1", "ev2", "metric"]
         ).drop(columns=["ev", "score"])
 
-        for name, ev1, ev2, metric in remaining.itertuples(index=False):
+        for row in remaining.itertuples(index=False):
+            name = row.name
+            ev1 = row.ev1
+            ev2 = row.ev2
+            metric = row.metric
             ground_truth = self.get_ground_truth(name)
             reconstruction = self.get_reconstruction(name, ev1, ev2)
             stats["name"].append(img_name)
