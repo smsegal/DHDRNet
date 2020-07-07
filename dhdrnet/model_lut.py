@@ -17,13 +17,13 @@ class DHDRNet(LightningModule):
     def __init__(self):
         super(DHDRNet, self).__init__()
 
-        num_classes = 4
+        num_classes = 36
         self.inner_model = models.squeezenet1_1(
             pretrained=False, num_classes=num_classes
         )
         # for param in self.feature_extractor.parameters():
         #     param.requires_grad = False
-        self.criterion = nn.CrossEntropyLoss(reduction="mean")
+        self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
         x = self.inner_model(x)
@@ -38,8 +38,8 @@ class DHDRNet(LightningModule):
         )
         trainval_data = LUTDataset(
             choice_path=ROOT_DIR
-            / "precomputed_data"
-            / "store_exposure_correct_cleaned.csv",
+                        / "precomputed_data"
+                        / "store_finer_2020-07-06.csv",
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             name_list=ROOT_DIR / "train.txt",
             transform=transform,
@@ -47,8 +47,8 @@ class DHDRNet(LightningModule):
 
         test_data = LUTDataset(
             choice_path=ROOT_DIR
-            / "precomputed_data"
-            / "store_exposure_correct_cleaned.csv",
+                        / "precomputed_data"
+                        / "store_finer_2020-07-06.csv",
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             name_list=ROOT_DIR / "test.txt",
             transform=transform,
@@ -76,10 +76,8 @@ class DHDRNet(LightningModule):
     def common_step(self, batch):
         mid_exposure, label, stats = batch
         outputs = self(mid_exposure)
-        _, preds = torch.max(outputs, 1)
 
-        loss = self.criterion(preds, label)
-        # loss = 1 - ssim_score
+        loss = self.criterion(outputs, label)
         return loss, stats
 
     def training_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
@@ -93,7 +91,7 @@ class DHDRNet(LightningModule):
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
+            self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}

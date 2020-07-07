@@ -13,7 +13,7 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self, gt_dir: Path, exp_dir: Path, transform=None,
+            self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
@@ -63,12 +63,12 @@ class HDRDataset(Dataset):
 
 class LUTDataset(Dataset):
     def __init__(
-        self,
-        choice_path: Path,
-        exposure_path: Path,
-        name_list,
-        transform=transforms.ToTensor(),
-        metric="mse",
+            self,
+            choice_path: Path,
+            exposure_path: Path,
+            name_list,
+            transform=transforms.ToTensor(),
+            metric="mse",
     ):
         self.exposure_path = exposure_path
         self.transform = transform
@@ -83,7 +83,10 @@ class LUTDataset(Dataset):
         baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
         by_ev = baseline_df.pivot_table(
             index="name", columns=["metric", "ev"], values="score"
-        ).loc[names]
+        )
+        by_ev = by_ev.loc[by_ev.index.intersection(names)]
+        evs = sorted(baseline_df["ev"].unique())
+        self.ev_indices = {ev: i for (i, ev) in enumerate(evs)}
         self.opt_choices = by_ev[metric].idxmin(axis=1)
         self.metric = metric
         self.data = by_ev
@@ -96,25 +99,10 @@ class LUTDataset(Dataset):
         if index >= len(self):
             raise IndexError()
 
-        label = self.opt_choices[index]
+        label_idx = self.ev_indices[self.opt_choices[index]]
         stats = self.data[self.metric].iloc[index]
         img_name = self.names[index]
         mid_exp = self.transform(
             Image.open(self.exposure_path / f"{img_name}[0.0].png")
         )
-        return mid_exp, [_ev_to_index(l,) for l in label] , stats.to_numpy()
-
-def _ev_to_index(ev_range):
-     pass
-
-def _ev_to_index_old(ev_range):
-    labels = {}
-    for i, ev in enumerate(np.linspace(-ev_range, ev_range, 5)):
-        if ev == 0:
-            continue
-        if ev > 0:
-            v = i - 1
-        else:
-            v = i
-        labels[ev] = v
-    return labels
+        return mid_exp, label_idx, stats.to_numpy()
