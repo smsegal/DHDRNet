@@ -98,7 +98,7 @@ class DHDRNet(LightningModule):
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss = self.common_step(batch)
+        loss, stats = self.common_step(batch)
         logs = {"test_loss": loss}
         return {"test_loss": loss, "log": logs}
 

@@ -7,12 +7,15 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 from dhdrnet import image_loader
 
 
-def show_image_pair(im1: np.ndarray, im2: np.ndarray):
-    fig = plt.figure(figsize=(12, 12))
+def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None):
+    fig = plt.figure(figsize=(12, 8))
     grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
 
     for ax, im in zip(grid, [im1, im2]):
         ax.imshow(im)
+
+    if title:
+        fig.suptitle(title)
 
 
 def show_exp_group(*images):
