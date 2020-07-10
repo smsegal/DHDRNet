@@ -33,8 +33,8 @@ def get_project_root() -> Path:
     try:
         git_root = (
             check_output(["git", "rev-parse", "--show-toplevel"])
-                .decode("utf-8")
-                .strip()
+            .decode("utf-8")
+            .strip()
         )
         return Path(git_root).absolute()
     except CalledProcessError:
@@ -126,9 +126,9 @@ def centercrop(images, shape):
     for im in images:
         w, h = im.shape[:-1]
         cropped = im[
-                  ceil((w - minw) / 2): ceil(w - ((w - minw) / 2)),
-                  ceil((h - minh) / 2): ceil(h - ((h - minh) / 2)),
-                  ]
+            ceil((w - minw) / 2) : ceil(w - ((w - minw) / 2)),
+            ceil((h - minh) / 2) : ceil(h - ((h - minh) / 2)),
+        ]
         all_cropped.append(cropped)
     return all_cropped
 
@@ -191,10 +191,7 @@ def get_image_pair_for_record(record):
         ev2 = max(0.0, ev)
     name = record["name"]
     reconstruction = (
-            DATA_DIR
-            / "correct_exposures"
-            / "reconstructions"
-            / f"{name}[{ev1}][{ev2}].png"
+        DATA_DIR / "correct_exposures" / "reconstructions" / f"{name}[{ev1}][{ev2}].png"
     )
     ground_truth = DATA_DIR / "correct_exposures" / "ground_truth" / f"{name}.png"
     return flatten([map(Image.open, [reconstruction, ground_truth]), name, ev1, ev2])
@@ -230,11 +227,11 @@ def best_worse_metric(dfg, metric, n, save_path=None):
             fig = plt.figure(figsize=(10, 5))
             grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1, label_mode="L")
             for ax, im, label in zip(
-                    grid, [reconstruction, gt], ["Reconstruction", "Ground Truth"]
+                grid, [reconstruction, gt], ["Reconstruction", "Ground Truth"]
             ):
                 ax.imshow(im)
                 ax.set_xlabel(f"{label}")
 
-            fig.suptitle(f"{goodbad} {metric} {name} EV {ev1} {ev2}", )
+            fig.suptitle(f"{goodbad} {metric} {name} EV {ev1} {ev2}",)
             if save_path is not None:
                 plt.savefig(save_path / f"{name}_{goodbad}")

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,6 +18,22 @@ def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None):
 
     if title:
         fig.suptitle(title)
+
+
+def show_image_grid(images, img_labels=None, num_per_row=2, title=None):
+    num_images = len(images)
+    num_rows = num_images // num_per_row
+    fig = plt.figure(figsize=(12 * num_per_row, 8 * num_rows))  # 4 x 3/2 ratio
+    grid = ImageGrid(fig, 111, nrows_ncols=(num_rows, num_per_row), axes_pad=0.1)
+
+    for ax, im, label, in zip(grid, images, img_labels):
+        ax.imshow(im)
+        ax.set_xlabel(label)
+
+    if title:
+        fig.suptitle(title)
+
+    plt.show()
 
 
 def show_exp_group(*images):
@@ -75,8 +93,8 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
 
     for i, (ev, stats) in enumerate(grouped.items()):
         type_stats = stats.loc[
-                     :, ["name", *[c for c in stats.columns if c.startswith(type)]]
-                     ]
+            :, ["name", *[c for c in stats.columns if c.startswith(type)]]
+        ]
         type_stats = type_stats.rename(lambda c: c.split("_")[-1], axis="columns")
         if "ssim" in type:
             type_stats[f"optimal_{type}"] = (
@@ -100,9 +118,6 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
     # if save_plots:
     #     plt.savefig(f"distribution_{type}")
     # plt.show()
-
-
-from collections import defaultdict
 
 
 def columns_with(df, name):

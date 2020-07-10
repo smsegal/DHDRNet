@@ -3,6 +3,7 @@ import datetime
 import operator as op
 from collections import defaultdict
 from functools import partial, reduce
+from itertools import product
 from pathlib import Path
 from typing import Collection, List
 
@@ -13,10 +14,8 @@ import pandas as pd
 import rawpy
 import torch
 from more_itertools.more import distinct_combinations
-from itertools import product
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
-
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
 
@@ -67,7 +66,7 @@ class GenAllPairs:
                 data=None, columns=["name", "metric", "ev1", "ev2", "score"]
             )
             self.store_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         self.single_threaded = single_threaded
 
     def __call__(self):
@@ -94,7 +93,8 @@ class GenAllPairs:
         ev_combinations = distinct_combinations(self.exposures, r=2)
 
         options_df = pd.DataFrame.from_records(
-            product([img_name], ev_combinations, self.metrics), columns=["name", "ev", "metric"]
+            product([img_name], ev_combinations, self.metrics),
+            columns=["name", "ev", "metric"],
         )
         options_df["ev1"] = options_df["ev"].apply(lambda d: d[0])
         options_df["ev2"] = options_df["ev"].apply(lambda d: d[1])
