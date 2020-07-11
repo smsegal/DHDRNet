@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import operator as op
 from collections import defaultdict
 from functools import partial, reduce
@@ -18,8 +17,6 @@ from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 from skimage.metrics import mean_squared_error, structural_similarity
 from tqdm.contrib.concurrent import thread_map
-
-from dhdrnet.util import ROOT_DIR
 
 
 def main(args):
@@ -78,7 +75,7 @@ class GenAllPairs:
 
     def stats_dispatch(self):
         stats = dict()
-        for i, image_name in enumerate(self.image_names):
+        for image_name in self.image_names:
             stats = reduce(nested_dict_merge, [stats, self.compute_stats(image_name)])
         return stats
 
@@ -228,8 +225,7 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
-def _ff(images):
-    return cv.createMergeMertens().process(images)
+_ff = cv.createMergeMertens().process
 
 
 def fuse(*images: List[np.ndarray]) -> np.ndarray:
