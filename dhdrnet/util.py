@@ -3,7 +3,8 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
-from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
+from contextlib import (ExitStack, contextmanager, redirect_stderr,
+                        redirect_stdout)
 from itertools import cycle
 from math import ceil
 from pathlib import Path

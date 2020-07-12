@@ -9,12 +9,13 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 from dhdrnet import image_loader
 
 
-def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None):
+def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
     fig = plt.figure(figsize=(12, 8))
     grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
 
-    for ax, im in zip(grid, [im1, im2]):
+    for ax, im, label in zip(grid, [im1, im2], labels):
         ax.imshow(im)
+        ax.set_xlabel(label)
 
     if title:
         fig.suptitle(title)
@@ -34,26 +35,6 @@ def show_image_grid(images, img_labels=None, num_per_row=2, title=None):
         fig.suptitle(title)
 
     plt.show()
-
-
-def show_exp_group(*images):
-    images = list(images)
-    num_im = len(images)
-    fig = plt.figure(figsize=(12 * num_im, 12))
-    grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
-
-
-def show_image_groups(*image_groups):
-    image_groups = list(image_groups)
-    group1 = image_groups[0]
-    interleaved = interleave(*image_groups)
-    fig = plt.figure(figsize=(30, 30))
-    grid = ImageGrid(
-        fig, 111, nrows_ncols=(len(group1), len(image_groups)), axes_pad=0.1
-    )
-
-    for ax, im in zip(grid, interleaved):
-        ax.imshow(im)
 
 
 def view_data_sample(dataset, idx=None):
@@ -105,19 +86,6 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
                 type_stats.loc[:, f"-{ev}.0":f"{ev}.0"].idxmin(axis=1).apply(float)
             )
     return type_stats
-    # type_stats[f"optimal_{type}"].value_counts(sort=True, normalize=True).plot(
-    #     kind="bar",
-    #     title=f"{type} [-{ev},{ev}]",
-    #     figsize=(10, 5),
-    #     ax=ax[i],
-    # )
-    # ax[i].set_ylabel("Frequency")
-
-    # plt.subplots_adjust(top=0.85, wspace=0.4)
-
-    # if save_plots:
-    #     plt.savefig(f"distribution_{type}")
-    # plt.show()
 
 
 def columns_with(df, name):

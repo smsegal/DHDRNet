@@ -18,15 +18,17 @@ class DHDRNet(LightningModule):
         super(DHDRNet, self).__init__()
 
         num_classes = 36
-        self.inner_model = models.squeezenet1_1(
-            pretrained=False, num_classes=num_classes
+        self.feature_extractor = models.mobilenet_v2(pretrained=False)
+        # self.feature_extractor.eval()
+        self.feature_extractor.classifier = nn.Sequential(
+            nn.Dropout(0.2), nn.Linear(self.feature_extractor.last_channel, num_classes)
         )
-        # for param in self.feature_extractor.parameters():
-        #     param.requires_grad = False
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        x = self.inner_model(x)
+        # features = self.feature_extractor.features(x)
+        # print(f"{features.shape=}")
+        x = self.feature_extractor(x)
         return x
 
     def prepare_data(self):
@@ -58,13 +60,15 @@ class DHDRNet(LightningModule):
         self.test_data = test_data
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.train_data, batch_size=16, num_workers=8)
+        return DataLoader(
+            self.train_data, batch_size=16, num_workers=8, pin_memory=True, shuffle=True
+        )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.val_data, batch_size=8, num_workers=8)
+        return DataLoader(self.val_data, batch_size=8, pin_memory=True, num_workers=8)
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.test_data, batch_size=8, num_workers=8)
+        return DataLoader(self.test_data, batch_size=8, pin_memory=True, num_workers=8)
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=1e-3)
