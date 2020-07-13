@@ -14,23 +14,6 @@ from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):
-    def __init__(self):
-        super(DHDRNet, self).__init__()
-
-        num_classes = 36
-        self.feature_extractor = models.mobilenet_v2(pretrained=False)
-        # self.feature_extractor.eval()
-        self.feature_extractor.classifier = nn.Sequential(
-            nn.Dropout(0.2), nn.Linear(self.feature_extractor.last_channel, num_classes)
-        )
-        self.criterion = nn.CrossEntropyLoss()
-
-    def forward(self, x):
-        # features = self.feature_extractor.features(x)
-        # print(f"{features.shape=}")
-        x = self.feature_extractor(x)
-        return x
-
     def prepare_data(self):
         transform = transforms.Compose(
             [
@@ -106,3 +89,36 @@ class DHDRNet(LightningModule):
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
         tensorboard_logs = {"test_loss": avg_loss}
         return {"test_loss": avg_loss, "log": tensorboard_logs}
+
+
+class DHDRMobileNet(DHDRNet):
+    def __init__(self):
+        super(DHDRMobileNet, self).__init__()
+
+        num_classes = 36
+        self.feature_extractor = models.mobilenet_v2(pretrained=False)
+        # self.feature_extractor.eval()
+        self.feature_extractor.classifier = nn.Sequential(
+            nn.Dropout(0.2), nn.Linear(self.feature_extractor.last_channel, num_classes)
+        )
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        # features = self.feature_extractor.features(x)
+        # print(f"{features.shape=}")
+        x = self.feature_extractor(x)
+        return x
+
+
+class DHDRSqueezeNet(DHDRNet):
+    def __init__(self):
+        super(DHDRSqueezeNet, self).__init__()
+        num_classes = 36
+        self.inner_model = models.squeezenet1_1(
+            pretrained=False, num_classes=num_classes
+        )
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        x = self.inner_model(x)
+        return x

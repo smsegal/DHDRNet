@@ -1,12 +1,13 @@
-from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from more_itertools import flatten, interleave
+from more_itertools import flatten
 from mpl_toolkits.axes_grid1 import ImageGrid
+from PIL import Image
 
 from dhdrnet import image_loader
+
+from .util import DATA_DIR
 
 
 def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
@@ -88,20 +89,36 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
     return type_stats
 
 
-def columns_with(df, name):
-    """Returns view of df with columns that have the substring name in their column name"""
-    selected_columns = [c for c in df.columns if name in c]
-    return selected_columns
+def show_predictions(predictions, model_name, image_names, ev_options):
+    for pred, img_name in zip(predictions, image_names):
+        ev = ev_options[pred]
+        pred_img = Image.open(
+            DATA_DIR / "correct_exposures" / "exposures" / f"{img_name}[{ev}].png"
+        )
+        baseline_img = Image.open(
+            DATA_DIR / "correct_exposures" / "exposures" / f"{img_name}[0.0].png"
+        )
+        show_image_pair(
+            baseline_img,
+            pred_img,
+            title=f"{img_name} {model_name} (Input + Predicted)",
+            labels=["Input", "Predicted"],
+        )
 
-
-def get_metric_cat_groups(df: pd.DataFrame, categories):
-    metrics = ("mse", "ssim", "ms_ssim")
-    columns_to_groups = defaultdict(dict)
-    for metric in metrics:
-        for ev, cat in categories.items():
-            for c in cat:
-                for col in df.columns:
-                    if col.startswith(metric) and col.endswith(str(c)):
-                        columns_to_groups[metric][col] = ev
-
-    return columns_to_groups
+        lower = np.minimum(ev, 0.0)
+        upper = np.maximum(ev, 0.0)
+        reconstructed = Image.open(
+            DATA_DIR
+            / "correct_exposures"
+            / "reconstructions"
+            / f"{img_name}[{lower}][{upper}].png"
+        )
+        ground_truth = Image.open(
+            DATA_DIR / "correct_exposures" / "ground_truth" / f"{img_name}.png"
+        )
+        show_image_pair(
+            ground_truth,
+            reconstructed,
+            title=f"{img_name} {model_name} (Ground Truth + Reconstructed)",
+            labels=["Ground Truth", "Reconstructed"],
+        )

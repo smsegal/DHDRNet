@@ -13,7 +13,7 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-            self, gt_dir: Path, exp_dir: Path, transform=None,
+        self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
@@ -63,18 +63,18 @@ class HDRDataset(Dataset):
 
 class LUTDataset(Dataset):
     def __init__(
-            self,
-            choice_path: Path,
-            exposure_path: Path,
-            name_list,
-            transform=transforms.ToTensor(),
-            metric="mse",
+        self,
+        choice_path: Path,
+        exposure_path: Path,
+        name_list,
+        transform=transforms.ToTensor(),
+        metric="mse",
     ):
         self.exposure_path = exposure_path
         self.transform = transform
 
         names = flatten(pd.read_csv(name_list, header=None).to_numpy())
-        df = pd.read_csv(choice_path).set_index("name")
+        df = pd.read_csv(choice_path, index_col=0).set_index("name")
         # ev 0
         baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
         baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(

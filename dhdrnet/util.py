@@ -3,15 +3,12 @@ import os
 import random
 from collections import defaultdict
 from collections.abc import Iterable as It
-from contextlib import (ExitStack, contextmanager, redirect_stderr,
-                        redirect_stdout)
-from itertools import cycle
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
-import cv2 as cv
 import numpy as np
 from more_itertools import flatten
 from PIL import Image
@@ -49,7 +46,6 @@ if "DHDR_DATA_DIR" in os.environ:
     DATA_DIR = Path(str(os.environ["DHDR_DATA_DIR"]))
 else:
     DATA_DIR = ROOT_DIR / "data"
-MODEL_DIR: Path = ROOT_DIR / "models"
 
 
 def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
@@ -236,3 +232,10 @@ def best_worse_metric(dfg, metric, n, save_path=None):
             fig.suptitle(f"{goodbad} {metric} {name} EV {ev1} {ev2}",)
             if save_path is not None:
                 plt.savefig(save_path / f"{name}_{goodbad}")
+
+
+def pred_distance(threshold, df, c1, c2):
+    """ df: two columns of the df to be diffed
+    """
+    diff = abs(df[c1] - df[c2])
+    return diff.where(diff <= threshold).count() / len(df)
