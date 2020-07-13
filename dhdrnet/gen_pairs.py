@@ -1,6 +1,7 @@
 import argparse
 import operator as op
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
@@ -12,11 +13,15 @@ import numpy as np
 import pandas as pd
 import rawpy
 import torch
+from more_itertools import chunked, flatten
 from more_itertools.more import distinct_combinations
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 from skimage.metrics import mean_squared_error, structural_similarity
+from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
+
+from dhdrnet.util import ROOT_DIR
 
 
 def main(args):
@@ -24,24 +29,40 @@ def main(args):
         raw_path=Path(args.raw_path),
         out_path=Path(args.out_path),
         store_path=Path(args.store_path),
+        exp_max=args.exp_max,
+        exp_min=args.exp_min,
+        exp_step=args.exp_step,
         single_threaded=args.single_thread,
     )
-    generator()
+    if args.updown:
+        print("Computing UpDown Strategy")
+        generator.updown_strategy()
+    else:
+        generator()
 
 
 class GenAllPairs:
     def __init__(
-        self, raw_path: Path, out_path: Path, store_path: Path, single_threaded: bool
+        self,
+        raw_path: Path,
+        out_path: Path,
+        store_path: Path,
+        exp_min: float = -3,
+        exp_max: float = 6,
+        exp_step: float = 0.25,
+        single_threaded: bool = False,
     ):
-        self.exposures = np.arange(-3, 6.25, 0.25)
+        self.exposures = np.arange(exp_min, exp_max + exp_step, exp_step)
         self.raw_path = raw_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
         self.reconstructed_out_path = self.out_path / "reconstructions"
+        self.updown_out_path = self.out_path / "updown"
         self.gt_path = self.out_path / "ground_truth"
-
-        self.image_names = [rf.stem for rf in self.raw_path.iterdir()]
-
+        # self.image_names = [rp.stem for rp in self.raw_path.iterdir()]
+        self.image_names = list(flatten(
+            pd.read_csv(ROOT_DIR / "test.txt", header=None).to_numpy()
+        ))
         self.metricfuncs = {
             "mse": mean_squared_error,
             "ssim": partial(structural_similarity, multichannel=True),
@@ -51,6 +72,7 @@ class GenAllPairs:
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
+        self.updown_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_path.mkdir(parents=True, exist_ok=True)
 
         self.store_path = store_path
@@ -83,6 +105,23 @@ class GenAllPairs:
         stats = reduce(
             nested_dict_merge, thread_map(self.compute_stats, self.image_names)
         )
+        return stats
+
+    def updown_strategy(self):
+        stats_df = self.compute_updown(self.image_names)
+        stats_df.to_csv(self.store_path)
+
+    def compute_updown(self, image_names):
+        records = defaultdict(dict)
+        for name in tqdm(image_names, total=len(image_names)):
+            updown_img = self.get_updown(name)
+            ground_truth = self.get_ground_truth(name)
+            for metric in self.metrics:
+                records[name][metric] = self.metricfuncs[metric](
+                    ground_truth, updown_img
+                )
+
+        stats = pd.DataFrame.from_dict(records)
         return stats
 
     def compute_stats(self, img_name):
@@ -151,6 +190,16 @@ class GenAllPairs:
             gt_img = fuse(*image_inputs)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img
+
+    def get_updown(self, name):
+        updown_path = self.updown_out_path / f"{name}.png"
+        if updown_path.exists():
+            updown_img = cv.imread(str(updown_path))
+        else:
+            images = self.get_exposures(name, [-1, 0, 1])
+            updown_img = fuse(*images)
+            cv.imwrite(str(updown_path), updown_img)
+        return updown_img
 
     def get_reconstruction(self, name, ev1, ev2):
         rec_path = self.reconstructed_out_path / f"{name}[{ev1}][{ev2}].png"
@@ -270,8 +319,14 @@ if __name__ == "__main__":
         help="file to store data in (created if does not exist)",
         default="store",
     )
+    parser.add_argument("--exp-min", default=-3)
+    parser.add_argument("--exp-max", default=6)
+    parser.add_argument("--exp-step", default=0.25)
     parser.add_argument(
         "--single-thread", help="single threaded mode", action="store_true"
+    )
+    parser.add_argument(
+        "--updown", help="compute the updown strategy", action="store_true"
     )
 
     args = parser.parse_args()

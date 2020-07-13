@@ -89,6 +89,7 @@ class LUTDataset(Dataset):
         self.ev_indices = {ev: i for (i, ev) in enumerate(evs)}
         self.opt_choices = by_ev[metric].idxmin(axis=1)
         self.metric = metric
+        self.baseline_data = baseline_df
         self.data = by_ev
         self.names = pd.Series(self.data.index)
 
