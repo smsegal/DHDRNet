@@ -1,12 +1,59 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import torch
+from more_itertools.recipes import flatten
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from more_itertools.recipes import flatten
+
+
+class LUTDataset(Dataset):
+    def __init__(
+        self,
+        choice_path: Path,
+        exposure_path: Path,
+        name_list,
+        transform=transforms.ToTensor(),
+        metric="mse",
+    ):
+        self.exposure_path = exposure_path
+        self.transform = transform
+
+        names = flatten(pd.read_csv(name_list, header=None).to_numpy())
+        df = pd.read_csv(choice_path, index_col=0).set_index("name")
+        # ev 0
+        baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
+        baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
+            lambda evs: [e for e in evs if e != 0][0], axis=1
+        )
+        baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
+        by_ev = baseline_df.pivot_table(
+            index="name", columns=["metric", "ev"], values="score"
+        )
+        by_ev = by_ev.loc[by_ev.index.intersection(names)]
+        evs = sorted(baseline_df["ev"].unique())
+        self.ev_indices = {ev: i for (i, ev) in enumerate(evs)}
+        self.opt_choices = by_ev[metric].idxmin(axis=1)
+        self.metric = metric
+        self.baseline_data = baseline_df
+        self.data = by_ev
+        self.names = pd.Series(self.data.index)
+
+    def __len__(self):
+        return len(self.names)
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError()
+
+        label_idx = self.ev_indices[self.opt_choices[index]]
+        stats = self.data[self.metric].iloc[index]
+        img_name = self.names[index]
+        mid_exp = self.transform(
+            Image.open(self.exposure_path / f"{img_name}[0.0].png")
+        )
+        return mid_exp, label_idx, stats.to_numpy()
 
 
 class HDRDataset(Dataset):
@@ -59,51 +106,3 @@ class HDRDataset(Dataset):
         mid_exposure = torch.stack([b["mid_exposure"] for b in batch])
         ground_truth = torch.stack([b["ground_truth"] for b in batch])
         return exposure_paths, mid_exposure, ground_truth
-
-
-class LUTDataset(Dataset):
-    def __init__(
-        self,
-        choice_path: Path,
-        exposure_path: Path,
-        name_list,
-        transform=transforms.ToTensor(),
-        metric="mse",
-    ):
-        self.exposure_path = exposure_path
-        self.transform = transform
-
-        names = flatten(pd.read_csv(name_list, header=None).to_numpy())
-        df = pd.read_csv(choice_path, index_col=0).set_index("name")
-        # ev 0
-        baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
-        baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
-            lambda evs: [e for e in evs if e != 0][0], axis=1
-        )
-        baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
-        by_ev = baseline_df.pivot_table(
-            index="name", columns=["metric", "ev"], values="score"
-        )
-        by_ev = by_ev.loc[by_ev.index.intersection(names)]
-        evs = sorted(baseline_df["ev"].unique())
-        self.ev_indices = {ev: i for (i, ev) in enumerate(evs)}
-        self.opt_choices = by_ev[metric].idxmin(axis=1)
-        self.metric = metric
-        self.baseline_data = baseline_df
-        self.data = by_ev
-        self.names = pd.Series(self.data.index)
-
-    def __len__(self):
-        return len(self.names)
-
-    def __getitem__(self, index):
-        if index >= len(self):
-            raise IndexError()
-
-        label_idx = self.ev_indices[self.opt_choices[index]]
-        stats = self.data[self.metric].iloc[index]
-        img_name = self.names[index]
-        mid_exp = self.transform(
-            Image.open(self.exposure_path / f"{img_name}[0.0].png")
-        )
-        return mid_exp, label_idx, stats.to_numpy()

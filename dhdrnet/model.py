@@ -7,7 +7,8 @@ from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
-from torchvision import models, transforms
+from torchvision import models
+from torchvision.transforms import Compose, FiveCrop, Lambda, ToTensor
 
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.util import DATA_DIR, ROOT_DIR
@@ -15,10 +16,10 @@ from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     def prepare_data(self):
-        transform = transforms.Compose(
+        transform = Compose(
             [
-                transforms.CenterCrop((360, 474)),  # min dimensions along DS
-                transforms.ToTensor(),
+                FiveCrop(250),
+                Lambda(lambda crops: torch.stack([ToTensor()(crop) for crop in crops])),
             ]
         )
         trainval_data = LUTDataset(

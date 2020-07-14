@@ -2,7 +2,7 @@ import datetime
 from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer, loggers
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from dhdrnet.model import DHDRMobileNet, DHDRSqueezeNet
 from dhdrnet.util import ROOT_DIR
@@ -29,6 +29,8 @@ def main(hparams=None):
         filepath="checkpoints/dhdr-{epoch}-{val_loss:.2f}",
     )
 
+    early_stopping = EarlyStopping("val_loss")
+
     if checkpoint_path and not hparams.test_only:
         trainer = Trainer(
             gpus=hparams.gpus,
@@ -44,6 +46,7 @@ def main(hparams=None):
             auto_lr_find=True,
             auto_scale_batch_size="binsearch",
             checkpoint_callback=checkpoint_loss_callback,
+            early_stop_callback=early_stopping,
             max_epochs=2000,
         )
 
