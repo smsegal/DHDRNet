@@ -37,19 +37,22 @@ def main(args):
         print("Computing UpDown Strategy")
         generator.updown_strategy()
     else:
+        print(
+            f"Computing Images from EV {args.exp_min} to {args.exp_max} with stepsize of {args.exp_step}"
+        )
         generator()
 
 
 class GenAllPairs:
     def __init__(
-            self,
-            raw_path: Path,
-            out_path: Path,
-            store_path: Path,
-            exp_min: float = -3,
-            exp_max: float = 6,
-            exp_step: float = 0.25,
-            single_threaded: bool = False,
+        self,
+        raw_path: Path,
+        out_path: Path,
+        store_path: Path,
+        exp_min: float = -3,
+        exp_max: float = 6,
+        exp_step: float = 0.25,
+        single_threaded: bool = False,
     ):
         self.exposures = np.arange(exp_min, exp_max + exp_step, exp_step)
         self.raw_path = raw_path
@@ -112,16 +115,23 @@ class GenAllPairs:
 
     def compute_updown(self, image_names):
         records = []
-        for name in tqdm(image_names[:2], total=len(image_names)):
+        for name in tqdm(image_names, total=len(image_names)):
             for ev in range(1, 5):
                 updown_img = self.get_updown(name, ev)
                 ground_truth = self.get_ground_truth(name)
                 for metric in self.metrics:
                     records.append(
-                        (name, metric, ev, self.metricfuncs[metric](ground_truth, updown_img))
+                        (
+                            name,
+                            metric,
+                            ev,
+                            self.metricfuncs[metric](ground_truth, updown_img),
+                        )
                     )
 
-        stats = pd.DataFrame.from_records(records, index="name", columns=["name", "metric", "ev", "score"])
+        stats = pd.DataFrame.from_records(
+            records, index="name", columns=["name", "metric", "ev", "score"]
+        )
         return stats
 
     def compute_stats(self, img_name):
@@ -236,8 +246,8 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
             im = np.minimum(im, (2 ** 16) - 1)
             raw.raw_image[:, :] = im
             postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
-                            :, :, channel_swapper
-                            ]
+                :, :, channel_swapper
+            ]
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -303,7 +313,7 @@ def _present(df, name, metric, ev1, ev2):
             & (df["ev1"] == ev1)
             & (df["ev2"] == ev2)
             & (df["name"] == name)
-            ]
+        ]
         return len(record)
     else:
         return False

@@ -13,7 +13,7 @@ from dhdrnet.Dataset import LUTDataset
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
-class DHDRNet(LightningModule):
+class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     def prepare_data(self):
         transform = transforms.Compose(
             [

@@ -21,7 +21,6 @@ pandas = "^1.0.4"
 tables = "^3.6.1"
 sewar = "^0.4.3"
 perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilarity.git"}
-pylint = "^2.5.3"
 exifread = "^2.1.2"
 
 [tool.poetry.dev-dependencies]
