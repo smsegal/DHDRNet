@@ -1,7 +1,6 @@
 import argparse
 import operator as op
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
@@ -13,7 +12,7 @@ import numpy as np
 import pandas as pd
 import rawpy
 import torch
-from more_itertools import chunked, flatten
+from more_itertools import flatten
 from more_itertools.more import distinct_combinations
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
@@ -43,14 +42,14 @@ def main(args):
 
 class GenAllPairs:
     def __init__(
-        self,
-        raw_path: Path,
-        out_path: Path,
-        store_path: Path,
-        exp_min: float = -3,
-        exp_max: float = 6,
-        exp_step: float = 0.25,
-        single_threaded: bool = False,
+            self,
+            raw_path: Path,
+            out_path: Path,
+            store_path: Path,
+            exp_min: float = -3,
+            exp_max: float = 6,
+            exp_step: float = 0.25,
+            single_threaded: bool = False,
     ):
         self.exposures = np.arange(exp_min, exp_max + exp_step, exp_step)
         self.raw_path = raw_path
@@ -60,9 +59,9 @@ class GenAllPairs:
         self.updown_out_path = self.out_path / "updown"
         self.gt_path = self.out_path / "ground_truth"
         # self.image_names = [rp.stem for rp in self.raw_path.iterdir()]
-        self.image_names = list(flatten(
-            pd.read_csv(ROOT_DIR / "test.txt", header=None).to_numpy()
-        ))
+        self.image_names = list(
+            flatten(pd.read_csv(ROOT_DIR / "test.txt", header=None).to_numpy())
+        )
         self.metricfuncs = {
             "mse": mean_squared_error,
             "ssim": partial(structural_similarity, multichannel=True),
@@ -112,16 +111,17 @@ class GenAllPairs:
         stats_df.to_csv(self.store_path)
 
     def compute_updown(self, image_names):
-        records = defaultdict(dict)
-        for name in tqdm(image_names, total=len(image_names)):
-            updown_img = self.get_updown(name)
-            ground_truth = self.get_ground_truth(name)
-            for metric in self.metrics:
-                records[name][metric] = self.metricfuncs[metric](
-                    ground_truth, updown_img
-                )
+        records = []
+        for name in tqdm(image_names[:2], total=len(image_names)):
+            for ev in range(1, 5):
+                updown_img = self.get_updown(name, ev)
+                ground_truth = self.get_ground_truth(name)
+                for metric in self.metrics:
+                    records.append(
+                        (name, metric, ev, self.metricfuncs[metric](ground_truth, updown_img))
+                    )
 
-        stats = pd.DataFrame.from_dict(records)
+        stats = pd.DataFrame.from_records(records, index="name", columns=["name", "metric", "ev", "score"])
         return stats
 
     def compute_stats(self, img_name):
@@ -191,12 +191,12 @@ class GenAllPairs:
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img
 
-    def get_updown(self, name):
+    def get_updown(self, name, ev):
         updown_path = self.updown_out_path / f"{name}.png"
         if updown_path.exists():
             updown_img = cv.imread(str(updown_path))
         else:
-            images = self.get_exposures(name, [-1, 0, 1])
+            images = self.get_exposures(name, [-ev, 0, ev])
             updown_img = fuse(*images)
             cv.imwrite(str(updown_path), updown_img)
         return updown_img
@@ -236,8 +236,8 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
             im = np.minimum(im, (2 ** 16) - 1)
             raw.raw_image[:, :] = im
             postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
-                :, :, channel_swapper
-            ]
+                            :, :, channel_swapper
+                            ]
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -303,7 +303,7 @@ def _present(df, name, metric, ev1, ev2):
             & (df["ev1"] == ev1)
             & (df["ev2"] == ev2)
             & (df["name"] == name)
-        ]
+            ]
         return len(record)
     else:
         return False
