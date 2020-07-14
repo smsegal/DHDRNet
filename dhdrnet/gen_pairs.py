@@ -4,7 +4,7 @@ from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Collection, List
+from typing import Collection, List, Optional, Union
 
 import cv2 as cv
 import exifread
@@ -48,7 +48,8 @@ class GenAllPairs:
         self,
         raw_path: Path,
         out_path: Path,
-        store_path: Path,
+        store_path: Optional[Path],
+        compute_scores=True,
         exp_min: float = -3,
         exp_max: float = 6,
         exp_step: float = 0.25,
@@ -65,28 +66,31 @@ class GenAllPairs:
         self.image_names = list(
             flatten(pd.read_csv(ROOT_DIR / "test.txt", header=None).to_numpy())
         )
-        self.metricfuncs = {
-            "mse": mean_squared_error,
-            "ssim": partial(structural_similarity, multichannel=True),
-            "perceptual": PerceptualMetric(),
-        }
-        self.metrics = list(self.metricfuncs.keys())
+
+        if compute_scores:
+            self.metricfuncs = {
+                "mse": mean_squared_error,
+                "ssim": partial(structural_similarity, multichannel=True),
+                "perceptual": PerceptualMetric(),
+            }
+            self.metrics = list(self.metricfuncs.keys())
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.updown_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_path.mkdir(parents=True, exist_ok=True)
 
-        self.store_path = store_path
-        if store_path.is_file():
-            self.store = pd.read_csv(
-                store_path, usecols=["name", "metric", "ev1", "ev2", "score"]
-            )
-        else:
-            self.store = pd.DataFrame(
-                data=None, columns=["name", "metric", "ev1", "ev2", "score"]
-            )
-            self.store_path.parent.mkdir(parents=True, exist_ok=True)
+        if store_path:
+            self.store_path = store_path
+            if store_path.is_file():
+                self.store = pd.read_csv(
+                    store_path, usecols=["name", "metric", "ev1", "ev2", "score"]
+                )
+            else:
+                self.store = pd.DataFrame(
+                    data=None, columns=["name", "metric", "ev1", "ev2", "score"]
+                )
+                self.store_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.single_threaded = single_threaded
 
@@ -120,14 +124,8 @@ class GenAllPairs:
                 updown_img = self.get_updown(name, ev)
                 ground_truth = self.get_ground_truth(name)
                 for metric in self.metrics:
-                    records.append(
-                        (
-                            name,
-                            metric,
-                            ev,
-                            self.metricfuncs[metric](ground_truth, updown_img),
-                        )
-                    )
+                    score = self.metricfuncs[metric](ground_truth, updown_img)
+                    records.append((name, metric, ev, score))
 
         stats = pd.DataFrame.from_records(
             records, index="name", columns=["name", "metric", "ev", "score"]

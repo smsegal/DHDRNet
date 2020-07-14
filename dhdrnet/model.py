@@ -1,6 +1,7 @@
 from math import ceil
 from typing import Dict, List, Union
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
@@ -8,30 +9,42 @@ from torch import Tensor
 from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
 from torchvision import models
-from torchvision.transforms import Compose, FiveCrop, Lambda, ToTensor
+from torchvision.transforms import Compose, TenCrop, Lambda, ToTensor
 
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
+    def __init__(self, learning_rate=1e-3, batch_size=8, **kwargs):
+        super().__init__(**kwargs)
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        self.save_hyperparameters()
+
     def prepare_data(self):
         transform = Compose(
             [
-                FiveCrop(250),
+                TenCrop(250),
                 Lambda(lambda crops: torch.stack([ToTensor()(crop) for crop in crops])),
             ]
         )
+
+        data_df = pd.read_csv(
+            ROOT_DIR / "precomputed_data" / "store_finer_2020-07-06.csv"
+        )
         trainval_data = LUTDataset(
-            choice_path=ROOT_DIR / "precomputed_data" / "store_finer_2020-07-06.csv",
+            df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
+            raw_dir=DATA_DIR / "dngs",
             name_list=ROOT_DIR / "train.txt",
             transform=transform,
         )
 
         test_data = LUTDataset(
-            choice_path=ROOT_DIR / "precomputed_data" / "store_finer_2020-07-06.csv",
+            df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
+            raw_dir=DATA_DIR / "dngs",
             name_list=ROOT_DIR / "test.txt",
             transform=transform,
         )
@@ -63,11 +76,13 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         )
 
     def configure_optimizers(self):
-        return Adam(self.parameters(), lr=1e-3)
+        return Adam(self.parameters(), lr=self.learning_rate)
 
     def common_step(self, batch):
         mid_exposure, label, stats = batch
-        outputs = self(mid_exposure)
+        bs, ncrops, c, h, w = mid_exposure.size()
+        outputs_crops = self(mid_exposure.view(-1, c, h, w))
+        outputs = outputs_crops.view(bs, ncrops, -1).mean(1)
 
         loss = self.criterion(outputs, label)
         return loss, stats
@@ -83,7 +98,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
+        self, outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
@@ -103,14 +118,14 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
 
 
 class DHDRMobileNet(DHDRNet):
-    def __init__(self):
-        super(DHDRMobileNet, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
-            nn.Dropout(0.2), nn.Linear(self.feature_extractor.last_channel, num_classes)
+            nn.Dropout(0.4), nn.Linear(self.feature_extractor.last_channel, num_classes)
         )
         self.criterion = nn.CrossEntropyLoss()
 
@@ -122,8 +137,8 @@ class DHDRMobileNet(DHDRNet):
 
 
 class DHDRSqueezeNet(DHDRNet):
-    def __init__(self):
-        super(DHDRSqueezeNet, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         num_classes = 36
         self.inner_model = models.squeezenet1_1(
             pretrained=False, num_classes=num_classes

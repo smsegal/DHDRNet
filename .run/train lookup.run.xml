@@ -1,20 +1,19 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="train lookup" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="train lookup (local)" type="PythonConfigurationType" factoryName="Python">
     <module name="DHDRNet" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
-      <env name="DHDR_DATA_DIR" value="$PROJECT_DIR$/../../../shane/Datasets/HDR+" />
     </envs>
-    <option name="SDK_HOME" value="" />
+    <option name="SDK_HOME" value="$USER_HOME$/.cache/pypoetry/virtualenvs/dhdrnet-KNUoFHXm-py3.8/bin/python" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/dhdrnet" />
-    <option name="IS_MODULE_SDK" value="true" />
+    <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dhdrnet/lightning_train.py" />
-    <option name="PARAMETERS" value="--method=lut" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dhdrnet/train.py" />
+    <option name="PARAMETERS" value="--backbone=mobile" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
