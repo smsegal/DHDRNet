@@ -1,11 +1,12 @@
 from math import ceil, floor
 from typing import Dict, List, Union
 
-import torchvision
-from pytorch_msssim import ssim
-from pytorch_lightning.core.lightning import LightningModule
 import torch
+import torchvision
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_msssim import ssim
 from torch import Tensor
+from torch.nn import functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
 from torchvision import models, transforms
@@ -90,7 +91,6 @@ class DHDRNet(LightningModule):
             exposure_paths, ground_truth, preds
         ).type_as(mid_exposure)
 
-
         loss = F.mse_loss(reconstructed_hdr, ground_truth)
         ssim_score = ssim(reconstructed_hdr, ground_truth)
         # loss = 1 - ssim_score
@@ -110,9 +110,7 @@ class DHDRNet(LightningModule):
         logs = {"val_loss": loss, "val_ssim": ssim_score}
         return {"val_loss": loss, "log": logs}
 
-    def validation_epoch_end(
-        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
-    ) -> Dict[str, Dict[str, Tensor]]:
+    def validation_epoch_end(self, outputs) -> Dict[str, Dict[str, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
         return {"val_loss": avg_loss, "log": tensorboard_logs}
@@ -122,9 +120,7 @@ class DHDRNet(LightningModule):
         logs = {"test_loss": loss, "test_ssim": ssim_score}
         return {"test_loss": loss, "log": logs}
 
-    def test_epoch_end(
-        self, outputs: Union[List[Dict[str, Tensor]], List[List[Dict[str, Tensor]]]]
-    ) -> Dict[str, Dict[str, Tensor]]:
+    def test_epoch_end(self, outputs) -> Dict[str, Dict[str, Tensor]]:
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
         tensorboard_logs = {"test_loss": avg_loss}
         return {"test_loss": avg_loss, "log": tensorboard_logs}

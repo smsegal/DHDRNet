@@ -44,14 +44,22 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.train_data, batch_size=16, num_workers=8, pin_memory=True, shuffle=True
+            self.train_data,
+            batch_size=self.batch_size,
+            num_workers=8,
+            pin_memory=True,
+            shuffle=True,
         )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.val_data, batch_size=8, pin_memory=True, num_workers=8)
+        return DataLoader(
+            self.val_data, batch_size=self.batch_size, pin_memory=True, num_workers=8
+        )
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(self.test_data, batch_size=8, pin_memory=True, num_workers=8)
+        return DataLoader(
+            self.test_data, batch_size=self.batch_size, pin_memory=True, num_workers=8
+        )
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=1e-3)
@@ -78,7 +86,9 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
-        return {"val_loss": avg_loss, "log": tensorboard_logs}
+        logs = {"val_loss": avg_loss, "log": tensorboard_logs}
+        results = {"progress_bar": logs}
+        return results
 
     def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
         loss, stats = self.common_step(batch)
