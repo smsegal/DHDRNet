@@ -128,7 +128,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
-        logs = {"val_loss": avg_loss, "log": tensorboard_logs, "progress_bar": avg_loss}
+        logs = {"val_loss": avg_loss, "log": tensorboard_logs}
         return logs
 
     def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
