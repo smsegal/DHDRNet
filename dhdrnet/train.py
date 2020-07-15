@@ -17,11 +17,11 @@ def main(hparams=None):
     if checkpoint_path := hparams.checkpoint_path:
         model = Model.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
     else:
-        model = Model(use_tencrop=hparams.tencrop)
+        model = Model(use_tencrop=hparams.tencrop, batch_size=76, learning_rate=1e-3)
 
     timestamp = datetime.datetime.now().isoformat()
     logger = loggers.TensorBoardLogger(
-        ROOT_DIR / "logs/", name=f"dhdr_{hparams.backbone}_{timestamp}"
+        ROOT_DIR / "logs", name=f"dhdr_{hparams.backbone}"
     )
 
     checkpoint_loss_callback = ModelCheckpoint(
@@ -32,7 +32,7 @@ def main(hparams=None):
         filepath="checkpoints/dhdr-{epoch}-{val_loss:.2f}",
     )
 
-    early_stopping = EarlyStopping("val_loss")
+    early_stopping = EarlyStopping("val_loss", patience=5)
 
     if checkpoint_path and not hparams.test_only:
         trainer = Trainer(
@@ -47,7 +47,7 @@ def main(hparams=None):
             logger=logger,
             weights_summary="full",
             auto_lr_find=True,
-            auto_scale_batch_size="binsearch",
+            # auto_scale_batch_size="binsearch",
             checkpoint_callback=checkpoint_loss_callback,
             early_stop_callback=early_stopping,
             max_epochs=2000,

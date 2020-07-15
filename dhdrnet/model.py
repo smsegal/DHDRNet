@@ -7,15 +7,18 @@ import torch.nn as nn
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, random_split
 from torchvision import models
 from torchvision.transforms import (
     Compose,
     TenCrop,
+    FiveCrop,
     Lambda,
     ToTensor,
     RandomCrop,
     RandomChoice,
+    RandomRotation,
     RandomHorizontalFlip,
     RandomVerticalFlip,
 )
@@ -36,7 +39,9 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         if self.use_tencrop:
             transform = Compose(
                 [
-                    TenCrop(350),
+                    RandomHorizontalFlip(p=0.5),
+                    RandomVerticalFlip(p=0.5),
+                    FiveCrop(300),
                     Lambda(
                         lambda crops: torch.stack([ToTensor()(crop) for crop in crops])
                     ),
@@ -45,10 +50,10 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         else:
             transform = Compose(
                 [
-                    RandomCrop(350),
-                    RandomChoice(
-                        [RandomHorizontalFlip(p=0.5), RandomVerticalFlip(p=0.5)]
-                    ),
+                    RandomCrop(300),
+                    RandomHorizontalFlip(p=0.5),
+                    RandomVerticalFlip(p=0.5),
+                    # RandomRotation((0, 360)),
                     ToTensor(),
                 ]
             )
@@ -71,7 +76,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
             name_list=ROOT_DIR / "test.txt",
             transform=transform,
         )
-        train_val_ratio = 0.8
+        train_val_ratio = 0.9
         train_len = ceil(train_val_ratio * len(trainval_data))
         val_len = len(trainval_data) - train_len
         train_data, val_data = random_split(trainval_data, lengths=(train_len, val_len))
@@ -99,7 +104,9 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         )
 
     def configure_optimizers(self):
-        return Adam(self.parameters(), lr=self.learning_rate)
+        optimizer =Adam(self.parameters(), lr=self.learning_rate)
+        scheduler = ReduceLROnPlateau(optimizer)
+        return [optimizer], [scheduler]
 
     def common_step(self, batch):
         mid_exposure, label, stats = batch
@@ -124,10 +131,10 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self, outputs: List[Dict[str, Tensor]],
+            self, outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        tensorboard_logs = {"val_epoch_loss": avg_loss}
+        tensorboard_logs = {"val_loss": avg_loss}
         logs = {"val_loss": avg_loss, "log": tensorboard_logs}
         return logs
 
@@ -150,7 +157,10 @@ class DHDRMobileNet(DHDRNet):
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
-            nn.Dropout(0.4), nn.Linear(self.feature_extractor.last_channel, num_classes)
+            nn.Dropout(0.3),
+            nn.Linear(self.feature_extractor.last_channel, self.feature_extractor.last_channel // 2),
+            nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
+            nn.Linear(self.feature_extractor.last_channel // 2, num_classes)
         )
         self.criterion = nn.CrossEntropyLoss()
 
