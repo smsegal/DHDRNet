@@ -9,26 +9,49 @@ from torch import Tensor
 from torch.optim import Adam
 from torch.utils.data import DataLoader, random_split
 from torchvision import models
-from torchvision.transforms import Compose, TenCrop, Lambda, ToTensor
+from torchvision.transforms import (
+    Compose,
+    TenCrop,
+    Lambda,
+    ToTensor,
+    RandomCrop,
+    RandomChoice,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+)
 
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
-    def __init__(self, learning_rate=1e-3, batch_size=8, **kwargs):
+    def __init__(self, learning_rate=1e-3, batch_size=8, use_tencrop=True, **kwargs):
         super().__init__(**kwargs)
         self.learning_rate = learning_rate
         self.batch_size = batch_size
+        self.use_tencrop = use_tencrop
         self.save_hyperparameters()
 
     def prepare_data(self):
-        transform = Compose(
-            [
-                TenCrop(250),
-                Lambda(lambda crops: torch.stack([ToTensor()(crop) for crop in crops])),
-            ]
-        )
+        if self.use_tencrop:
+            transform = Compose(
+                [
+                    TenCrop(350),
+                    Lambda(
+                        lambda crops: torch.stack([ToTensor()(crop) for crop in crops])
+                    ),
+                ]
+            )
+        else:
+            transform = Compose(
+                [
+                    RandomCrop(350),
+                    RandomChoice(
+                        [RandomHorizontalFlip(p=0.5), RandomVerticalFlip(p=0.5)]
+                    ),
+                    ToTensor(),
+                ]
+            )
 
         data_df = pd.read_csv(
             ROOT_DIR / "precomputed_data" / "store_finer_2020-07-06.csv"
@@ -80,9 +103,12 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
 
     def common_step(self, batch):
         mid_exposure, label, stats = batch
-        bs, ncrops, c, h, w = mid_exposure.size()
-        outputs_crops = self(mid_exposure.view(-1, c, h, w))
-        outputs = outputs_crops.view(bs, ncrops, -1).mean(1)
+        if self.use_tencrop:
+            bs, ncrops, c, h, w = mid_exposure.size()
+            outputs_crops = self(mid_exposure.view(-1, c, h, w))
+            outputs = outputs_crops.view(bs, ncrops, -1).mean(1)
+        else:
+            outputs = self(mid_exposure)
 
         loss = self.criterion(outputs, label)
         return loss, stats
@@ -102,9 +128,8 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_epoch_loss": avg_loss}
-        logs = {"val_loss": avg_loss, "log": tensorboard_logs}
-        results = {"progress_bar": logs}
-        return results
+        logs = {"val_loss": avg_loss, "log": tensorboard_logs, "progress_bar": avg_loss}
+        return logs
 
     def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
         loss, stats = self.common_step(batch)

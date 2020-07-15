@@ -17,9 +17,12 @@ def main(hparams=None):
     if checkpoint_path := hparams.checkpoint_path:
         model = Model.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
     else:
-        model = Model()
+        model = Model(use_tencrop=hparams.tencrop)
 
-    logger = loggers.TensorBoardLogger(ROOT_DIR / "logs/")
+    timestamp = datetime.datetime.now().isoformat()
+    logger = loggers.TensorBoardLogger(
+        ROOT_DIR / "logs/", name=f"dhdr_{hparams.backbone}_{timestamp}"
+    )
 
     checkpoint_loss_callback = ModelCheckpoint(
         monitor="val_loss",
@@ -52,9 +55,7 @@ def main(hparams=None):
 
     if not hparams.test_only:
         trainer.fit(model)
-        trainer.save_checkpoint(
-            f"checkpoints/dhdr_final{datetime.datetime.now().isoformat()}.ckpt"
-        )
+        trainer.save_checkpoint(f"checkpoints/dhdr_final{timestamp}.ckpt")
 
     trainer.test(model)
 
@@ -64,6 +65,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", default=None)
     parser.add_argument("--backbone", choices=["mobile", "squeeze"])
     parser.add_argument("--test-only", action="store_true")
+    parser.add_argument("--tencrop", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)
     args = parser.parse_args()
     print(args)
