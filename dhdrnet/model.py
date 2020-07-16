@@ -2,16 +2,14 @@ from math import ceil
 from typing import Dict, List, Union
 
 import pandas as pd
-
 import torch
 import torch.nn as nn
-from dhdrnet.Dataset import LUTDataset
-from dhdrnet.util import DATA_DIR, ROOT_DIR
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, random_split
+from torchsummary import summary
 from torchvision import models
 from torchvision.transforms import (
     Compose,
@@ -25,6 +23,9 @@ from torchvision.transforms import (
     TenCrop,
     ToTensor,
 )
+
+from dhdrnet.Dataset import LUTDataset
+from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
@@ -253,7 +254,7 @@ class DHDRSimple(DHDRNet):
             nn.Conv2d(100, 1, kernel_size=100),
             nn.AdaptiveAvgPool2d(1)
         )
-        print(model)
+        print(summary(model, (3, 300, 300)))
         return model
 
     def forward(self, x):
