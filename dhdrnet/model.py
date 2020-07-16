@@ -2,8 +2,11 @@ from math import ceil
 from typing import Dict, List, Union
 
 import pandas as pd
+
 import torch
 import torch.nn as nn
+from dhdrnet.Dataset import LUTDataset
+from dhdrnet.util import DATA_DIR, ROOT_DIR
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
@@ -12,19 +15,16 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import models
 from torchvision.transforms import (
     Compose,
-    TenCrop,
     FiveCrop,
     Lambda,
-    ToTensor,
-    RandomCrop,
     RandomChoice,
-    RandomRotation,
+    RandomCrop,
     RandomHorizontalFlip,
+    RandomRotation,
     RandomVerticalFlip,
+    TenCrop,
+    ToTensor,
 )
-
-from dhdrnet.Dataset import LUTDataset
-from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
@@ -104,7 +104,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         )
 
     def configure_optimizers(self):
-        optimizer =Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = Adam(self.parameters(), lr=self.learning_rate)
         scheduler = ReduceLROnPlateau(optimizer)
         return [optimizer], [scheduler]
 
@@ -131,7 +131,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-            self, outputs: List[Dict[str, Tensor]],
+        self, outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs = {"val_loss": avg_loss}
@@ -149,7 +149,27 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         return {"test_loss": avg_loss, "log": tensorboard_logs}
 
 
-class DHDRMobileNet(DHDRNet):
+class DHDRMobileNet_v1(DHDRNet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        num_classes = 36
+        self.feature_extractor = models.mobilenet_v2(pretrained=False)
+        # self.feature_extractor.eval()
+        self.feature_extractor.classifier = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(self.feature_extractor.last_channel, num_classes),
+        )
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        # features = self.feature_extractor.features(x)
+        # print(f"{features.shape=}")
+        x = self.feature_extractor(x)
+        return x
+
+
+class DHDRMobileNet_v2(DHDRNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -158,9 +178,32 @@ class DHDRMobileNet(DHDRNet):
         # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
             nn.Dropout(0.3),
-            nn.Linear(self.feature_extractor.last_channel, self.feature_extractor.last_channel // 2),
+            nn.Linear(self.feature_extractor.last_channel, num_classes),
+        )
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        # features = self.feature_extractor.features(x)
+        # print(f"{features.shape=}")
+        x = self.feature_extractor(x)
+        return x
+
+
+class DHDRMobileNet_v3(DHDRNet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        num_classes = 36
+        self.feature_extractor = models.mobilenet_v2(pretrained=False)
+        # self.feature_extractor.eval()
+        self.feature_extractor.classifier = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(
+                self.feature_extractor.last_channel,
+                self.feature_extractor.last_channel // 2,
+            ),
             nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
-            nn.Linear(self.feature_extractor.last_channel // 2, num_classes)
+            nn.Linear(self.feature_extractor.last_channel // 2, num_classes),
         )
         self.criterion = nn.CrossEntropyLoss()
 
@@ -183,3 +226,37 @@ class DHDRSqueezeNet(DHDRNet):
     def forward(self, x):
         x = self.inner_model(x)
         return x
+
+
+class DHDRSimple(DHDRNet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        num_classes = 36
+        self.model = self._simple_model(num_classes)
+
+    def _simple_model(num_classes=100):
+        return nn.Sequential(
+            nn.Conv2d(3, 24, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            *[
+                nn.Conv2d(24, 24, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(24),
+                nn.ReLU(),
+                nn.Conv2d(24, 24, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(24),
+                nn.ReLU(),
+                nn.AvgPool2d(2),
+            ]
+            * 4,
+            nn.Linear(24 * 24 * 3, 24 * 24 * 2),
+            nn.BatchNorm1d(24 * 24 * 2),
+            nn.ReLu(),
+            nn.Linear(24 * 24 * 2, 24 * 24),
+            nn.BatchNorm1d(24 * 24),
+            nn.ReLu(),
+            nn.Linear(24 * 24, num_classes),
+        )
+
+    def forward(self, x):
+        return self.model(x)
