@@ -1,0 +1,3 @@
+batch_size: 76
+learning_rate: 0.001
+use_tencrop: false
