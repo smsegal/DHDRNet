@@ -65,7 +65,7 @@ def main(hparams=None):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--gpus", default=None)
-    parser.add_argument("--backbone", choices=["mobile", "squeeze"])
+    parser.add_argument("--backbone", choices=["mobile", "squeeze", "simple"])
     parser.add_argument("--test-only", action="store_true")
     parser.add_argument("--tencrop", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)

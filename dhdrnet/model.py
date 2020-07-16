@@ -235,9 +235,9 @@ class DHDRSimple(DHDRNet):
         num_classes = 36
         self.model = self._simple_model(num_classes)
 
-    def _simple_model(num_classes=100):
-        return nn.Sequential(
-            nn.Conv2d(3, 24, kernel_size=3, stride=1, padding=1),
+    def _simple_model(self, num_classes=100):
+        model = nn.Sequential(
+            nn.Conv2d(3, 24, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
             *[
                 nn.Conv2d(24, 24, kernel_size=3, stride=1, padding=1),
@@ -247,17 +247,14 @@ class DHDRSimple(DHDRNet):
                 nn.Dropout2d(p=0.5),
                 nn.BatchNorm2d(24),
                 nn.ReLU(),
-                nn.AvgPool2d(2),
+                nn.AdaptiveAvgPool2d(100),
             ]
-            * 4,
-            nn.Linear(24 * 24 * 3, 24 * 24 * 2),
-            nn.BatchNorm1d(24 * 24 * 2),
-            nn.ReLu(),
-            nn.Linear(24 * 24 * 2, 24 * 24),
-            nn.BatchNorm1d(24 * 24),
-            nn.ReLu(),
-            nn.Linear(24 * 24, num_classes),
+            * 8,
+            nn.Conv2d(100, 1, kernel_size=100),
+            nn.AdaptiveAvgPool2d(1)
         )
+        print(model)
+        return model
 
     def forward(self, x):
         return self.model(x)

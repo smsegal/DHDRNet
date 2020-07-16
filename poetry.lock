@@ -789,6 +789,7 @@ tqdm = ">=4.28.1"
 reference = "f685b3c346dd7c6232a5cacfdbfd5cc95b145403"
 type = "git"
 url = "git@github.com:smsegal/PerceptualSimilarity.git"
+
 [[package]]
 category = "main"
 description = "Pexpect allows easy control of interactive console applications."
@@ -865,7 +866,7 @@ six = ">=1.9"
 [[package]]
 category = "main"
 description = "Run a subprocess in a pseudo terminal"
-marker = "sys_platform != \"win32\" or os_name != \"nt\" or python_version >= \"3.3\" and sys_platform != \"win32\""
+marker = "python_version >= \"3.3\" and sys_platform != \"win32\" or sys_platform != \"win32\" or os_name != \"nt\" or python_version >= \"3.3\" and sys_platform != \"win32\" and (python_version >= \"3.3\" and sys_platform != \"win32\" or sys_platform != \"win32\")"
 name = "ptyprocess"
 optional = false
 python-versions = "*"
@@ -1318,6 +1319,14 @@ numpy = "*"
 
 [[package]]
 category = "main"
+description = "Model summary in PyTorch similar to `model.summary()` in Keras"
+name = "torchsummary"
+optional = false
+python-versions = "*"
+version = "1.5.1"
+
+[[package]]
+category = "main"
 description = "image and video datasets and models for torch deep learning"
 name = "torchvision"
 optional = false
@@ -1448,7 +1457,7 @@ version = "3.5.1"
 notebook = ">=4.4.1"
 
 [metadata]
-content-hash = "90d9843096d6dcd104d6d7c5a86bc06cd776c8ab591cc0299fb44e8540135a3a"
+content-hash = "fc21cdb2e15748eb49e70c4e345723bc9734f00ad0515e983bd377133b87ea11"
 python-versions = "~3.8"
 
 [metadata.files]
@@ -2249,6 +2258,10 @@ torch = [
     {file = "torch-1.5.1-cp37-none-macosx_10_9_x86_64.whl", hash = "sha256:bb2a3e6c9c9dbfda856bd1b1a55d88789a9488b569ffba9cd6d9aa536ef866ba"},
     {file = "torch-1.5.1-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:c42658f2982591dc4d0459645c9ab26e0ce18aa7ab0993c27c8bcb1c98931d11"},
     {file = "torch-1.5.1-cp38-none-macosx_10_9_x86_64.whl", hash = "sha256:ff1dbeaa017bae66036e8e7a698a5475ac5a0d7b0a690f0a04ac3b1133b1feb3"},
+]
+torchsummary = [
+    {file = "torchsummary-1.5.1-py3-none-any.whl", hash = "sha256:10f41d1743fb918f83293f13183f532ab1bb8f6639a1b89e5f8592ec1919a976"},
+    {file = "torchsummary-1.5.1.tar.gz", hash = "sha256:981bf689e22e0cf7f95c746002f20a24ad26aa6b9d861134a14bc6ce92230590"},
 ]
 torchvision = [
     {file = "torchvision-0.6.1-cp35-cp35m-macosx_10_6_x86_64.whl", hash = "sha256:eb6d7ef73ab8ed756d18c1c11ead3ba1be7b3e2fe5bf475e16a4426d7f3d6eec"},

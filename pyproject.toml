@@ -22,6 +22,7 @@ tables = "^3.6.1"
 sewar = "^0.4.3"
 perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilarity.git"}
 exifread = "^2.1.2"
+torchsummary = "^1.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

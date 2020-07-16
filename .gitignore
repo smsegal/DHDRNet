@@ -372,3 +372,6 @@ tags
 # End of https://www.gitignore.io/api/vim
 
 models/*
+precomputed_data/*
+data
+checkpoints/*
