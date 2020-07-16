@@ -4,15 +4,17 @@ from argparse import ArgumentParser
 from pytorch_lightning import Trainer, loggers
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-from dhdrnet.model import DHDRMobileNet, DHDRSqueezeNet
+from dhdrnet import model as models
 from dhdrnet.util import ROOT_DIR
 
 
 def main(hparams=None):
     if hparams.backbone == "squeeze":
-        Model = DHDRSqueezeNet
+        Model = models.DHDRSqueezeNet
     elif hparams.backbone == "mobile":
-        Model = DHDRMobileNet
+        Model = models.DHDRMobileNet_v3
+    elif hparams.backbone == "simple":
+        Model = models.DHDRSimple
 
     if checkpoint_path := hparams.checkpoint_path:
         model = Model.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
