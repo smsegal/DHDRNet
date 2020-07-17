@@ -234,7 +234,9 @@ class DHDRSimple(DHDRNet):
         super().__init__(*args, **kwargs)
 
         num_classes = 36
-        self.model = self._simple_model(num_classes)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v
+        self.model = self._simple_model(num_classes).to(device)
+        summary(self.model, (3, 300, 300))
 
     def _simple_model(self, num_classes=100):
         model = nn.Sequential(
@@ -250,11 +252,9 @@ class DHDRSimple(DHDRNet):
                 nn.ReLU(),
                 nn.AdaptiveAvgPool2d(100),
             ]
-            * 8,
-            nn.Conv2d(100, 1, kernel_size=100),
+            * 6,
             nn.AdaptiveAvgPool2d(1)
         )
-        print(summary(model, (3, 300, 300)))
         return model
 
     def forward(self, x):
