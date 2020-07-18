@@ -27,14 +27,31 @@ from torchvision.transforms import (
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
+from dhdrnet.squeezenet import squeezenet1_1
+
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
-    def __init__(self, learning_rate=1e-3, batch_size=8, use_tencrop=True, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        learning_rate=1e-3,
+        batch_size=8,
+        use_tencrop=True,
+        want_summary=False,
+        *args,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.use_tencrop = use_tencrop
         self.save_hyperparameters()
+
+    def print_summary(self, model, size):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+        summary(model, (3, 288, 288))
+        del model
 
     def prepare_data(self):
         if self.use_tencrop:
@@ -51,7 +68,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
         else:
             transform = Compose(
                 [
-                    RandomCrop(300),
+                    RandomCrop(288),
                     RandomHorizontalFlip(p=0.5),
                     RandomVerticalFlip(p=0.5),
                     # RandomRotation((0, 360)),
@@ -216,12 +233,14 @@ class DHDRMobileNet_v3(DHDRNet):
 
 
 class DHDRSqueezeNet(DHDRNet):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, want_summary=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         num_classes = 36
-        self.inner_model = models.squeezenet1_1(
-            pretrained=False, num_classes=num_classes
-        )
+        self.inner_model = squeezenet1_1(pretrained=False, num_classes=num_classes)
+
+        if want_summary:
+            super().print_summary(self.inner_model, size=(1, 300, 300))
+
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
@@ -230,13 +249,16 @@ class DHDRSqueezeNet(DHDRNet):
 
 
 class DHDRSimple(DHDRNet):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, want_summary=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         num_classes = 36
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v
-        self.model = self._simple_model(num_classes).to(device)
-        summary(self.model, (3, 300, 300))
+        self.model = self._simple_model(num_classes)
+
+        if want_summary:
+            super().print_summary(self.model, size=(1, 300, 300))
+
+        self.criterion = nn.CrossEntropyLoss()
 
     def _simple_model(self, num_classes=100):
         model = nn.Sequential(
@@ -250,10 +272,12 @@ class DHDRSimple(DHDRNet):
                 nn.Dropout2d(p=0.5),
                 nn.BatchNorm2d(24),
                 nn.ReLU(),
-                nn.AdaptiveAvgPool2d(100),
+                nn.AvgPool2d(2),
             ]
-            * 6,
-            nn.AdaptiveAvgPool2d(1)
+            * 2,
+            nn.Flatten(),
+            nn.ReLU(),
+            nn.Linear(1944, num_classes)
         )
         return model
 

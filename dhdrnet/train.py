@@ -19,7 +19,12 @@ def main(hparams=None):
     if checkpoint_path := hparams.checkpoint_path:
         model = Model.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
     else:
-        model = Model(use_tencrop=hparams.tencrop, batch_size=76, learning_rate=1e-3)
+        model = Model(
+            use_tencrop=hparams.tencrop,
+            batch_size=200,
+            learning_rate=1e-3,
+            want_summary=hparams.summary,
+        )
 
     timestamp = datetime.datetime.now().isoformat()
     logger = loggers.TensorBoardLogger(
@@ -47,9 +52,9 @@ def main(hparams=None):
         trainer = Trainer(
             gpus=hparams.gpus,
             logger=logger,
-            weights_summary="full",
+            weights_summary=None,
             auto_lr_find=True,
-            # auto_scale_batch_size="binsearch",
+            auto_scale_batch_size="power" if hparams.auto_batch else None,
             checkpoint_callback=checkpoint_loss_callback,
             early_stop_callback=early_stopping,
             max_epochs=2000,
@@ -69,6 +74,10 @@ if __name__ == "__main__":
     parser.add_argument("--test-only", action="store_true")
     parser.add_argument("--tencrop", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)
+    parser.add_argument(
+        "--summary", help="print a summary of model weights", action="store_true"
+    )
+    parser.add_argument("--auto-batch", action="store_true")
     args = parser.parse_args()
     print(args)
     main(args)
