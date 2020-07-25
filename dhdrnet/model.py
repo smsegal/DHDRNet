@@ -20,70 +20,48 @@ from torchvision.transforms import (
     RandomHorizontalFlip,
     RandomRotation,
     RandomVerticalFlip,
+    Resize,
     TenCrop,
     ToTensor,
 )
 
 from dhdrnet.Dataset import LUTDataset
-from dhdrnet.util import DATA_DIR, ROOT_DIR
-
 from dhdrnet.squeezenet import squeezenet1_1
+from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
 class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     def __init__(
-        self,
-        learning_rate=1e-3,
-        batch_size=8,
-        use_tencrop=True,
-        want_summary=False,
-        *args,
-        **kwargs
+        self, learning_rate=1e-3, batch_size=8, want_summary=False, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
 
         self.learning_rate = learning_rate
         self.batch_size = batch_size
-        self.use_tencrop = use_tencrop
         self.save_hyperparameters()
 
     def print_summary(self, model, size):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
-        summary(model, (3, 288, 288))
+        summary(model, (3, 300, 300))
         del model
 
     def prepare_data(self):
-        if self.use_tencrop:
-            transform = Compose(
-                [
-                    RandomHorizontalFlip(p=0.5),
-                    RandomVerticalFlip(p=0.5),
-                    FiveCrop(300),
-                    Lambda(
-                        lambda crops: torch.stack([ToTensor()(crop) for crop in crops])
-                    ),
-                ]
-            )
-        else:
-            transform = Compose(
-                [
-                    RandomCrop(288),
-                    RandomHorizontalFlip(p=0.5),
-                    RandomVerticalFlip(p=0.5),
-                    # RandomRotation((0, 360)),
-                    ToTensor(),
-                ]
-            )
-
-        data_df = pd.read_csv(
-            ROOT_DIR / "precomputed_data" / "store_finer_2020-07-06.csv"
+        transform = Compose(
+            [
+                Resize((300, 300)),
+                RandomHorizontalFlip(p=0.5),
+                RandomVerticalFlip(p=0.5),
+                ToTensor(),
+            ]
         )
+
+        data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
         trainval_data = LUTDataset(
             df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",
-            name_list=ROOT_DIR / "train.txt",
+            name_list=ROOT_DIR / "precomputed_data" / "train_current.csv",
             transform=transform,
         )
 
@@ -91,7 +69,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
             df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",
-            name_list=ROOT_DIR / "test.txt",
+            name_list=ROOT_DIR / "precomputed_data" / "test_current.csv",
             transform=transform,
         )
         train_val_ratio = 0.9
@@ -128,12 +106,7 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
 
     def common_step(self, batch):
         mid_exposure, label, stats = batch
-        if self.use_tencrop:
-            bs, ncrops, c, h, w = mid_exposure.size()
-            outputs_crops = self(mid_exposure.view(-1, c, h, w))
-            outputs = outputs_crops.view(bs, ncrops, -1).mean(1)
-        else:
-            outputs = self(mid_exposure)
+        outputs = self(mid_exposure)
 
         loss = self.criterion(outputs, label)
         return loss, stats
@@ -151,8 +124,8 @@ class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
     def validation_epoch_end(
         self, outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        tensorboard_logs = {"val_loss": avg_loss}
+        avg_loss: Tensor = torch.stack([x["val_loss"] for x in outputs]).mean()
+        tensorboard_logs: Dict[str, Tensor] = {"val_loss": avg_loss}
         logs = {"val_loss": avg_loss, "log": tensorboard_logs}
         return logs
 
@@ -173,7 +146,6 @@ class DHDRMobileNet_v1(DHDRNet):
 
         num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
-        # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
             nn.Dropout(0.2),
             nn.Linear(self.feature_extractor.last_channel, num_classes),
@@ -181,8 +153,6 @@ class DHDRMobileNet_v1(DHDRNet):
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        # features = self.feature_extractor.features(x)
-        # print(f"{features.shape=}")
         x = self.feature_extractor(x)
         return x
 
@@ -193,9 +163,8 @@ class DHDRMobileNet_v2(DHDRNet):
 
         num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
-        # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
-            nn.Dropout(0.3),
+            nn.Dropout(0.5),
             nn.Linear(self.feature_extractor.last_channel, num_classes),
         )
         self.criterion = nn.CrossEntropyLoss()
@@ -215,7 +184,7 @@ class DHDRMobileNet_v3(DHDRNet):
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
-            nn.Dropout(0.3),
+            nn.Dropout(0.5),
             nn.Linear(
                 self.feature_extractor.last_channel,
                 self.feature_extractor.last_channel // 2,

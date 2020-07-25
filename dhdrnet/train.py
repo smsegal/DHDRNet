@@ -11,20 +11,22 @@ from dhdrnet.util import ROOT_DIR
 def main(hparams=None):
     if hparams.backbone == "squeeze":
         Model = models.DHDRSqueezeNet
-    elif hparams.backbone == "mobile":
+    elif hparams.backbone == "mobile_v1":
+        Model = models.DHDRMobileNet_v1
+    elif hparams.backbone == "mobile_v2":
+        Model = models.DHDRMobileNet_v2
+    elif hparams.backbone == "mobile_v3":
         Model = models.DHDRMobileNet_v3
     elif hparams.backbone == "simple":
         Model = models.DHDRSimple
 
-    if checkpoint_path := hparams.checkpoint_path:
-        model = Model.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
-    else:
-        model = Model(
-            use_tencrop=hparams.tencrop,
-            batch_size=200,
-            learning_rate=1e-3,
-            want_summary=hparams.summary,
-        )
+    checkpoint_path = hparams.checkpoint_path
+    # if checkpoint_path := hparams.checkpoint_path:
+    #     model = Model.load_from_checkpoint(
+    #         batch_size=80, checkpoint_path=str(checkpoint_path)
+    #     )
+    # else:
+    model = Model(batch_size=72, learning_rate=1e-3, want_summary=hparams.summary,)
 
     timestamp = datetime.datetime.now().isoformat()
     logger = loggers.TensorBoardLogger(
@@ -39,30 +41,25 @@ def main(hparams=None):
         filepath=ROOT_DIR / "checkpoints/dhdr-{epoch}-{val_loss:.2f}",
     )
 
-    early_stopping = EarlyStopping("val_loss", patience=5)
+    early_stopping = EarlyStopping("val_loss", patience=15)
 
-    if checkpoint_path and not hparams.test_only:
-        trainer = Trainer(
-            gpus=hparams.gpus,
-            logger=logger,
-            checkpoint_callback=checkpoint_loss_callback,
-            resume_from_checkpoint=checkpoint_path,
-        )
-    else:
-        trainer = Trainer(
-            gpus=hparams.gpus,
-            logger=logger,
-            weights_summary=None,
-            auto_lr_find=True,
-            auto_scale_batch_size="power" if hparams.auto_batch else None,
-            checkpoint_callback=checkpoint_loss_callback,
-            early_stop_callback=early_stopping,
-            max_epochs=2000,
-        )
+    trainer = Trainer(
+        gpus=hparams.gpus,
+        logger=logger,
+        weights_summary=None,
+        auto_lr_find=hparams.auto_lr,
+        auto_scale_batch_size="binsearch" if hparams.auto_batch else None,
+        checkpoint_callback=checkpoint_loss_callback,
+        early_stop_callback=early_stopping,
+        resume_from_checkpoint=checkpoint_path if checkpoint_path else None,
+        max_epochs=2000,
+    )
 
     if not hparams.test_only:
         trainer.fit(model)
-        trainer.save_checkpoint(f"checkpoints/dhdr_final{timestamp}.ckpt")
+        trainer.save_checkpoint(
+            ROOT_DIR / f"checkpoints/dhdr_{hparams.backbone}_final{timestamp}.ckpt"
+        )
 
     trainer.test(model)
 
@@ -70,14 +67,17 @@ def main(hparams=None):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--gpus", default=None)
-    parser.add_argument("--backbone", choices=["mobile", "squeeze", "simple"])
+    parser.add_argument(
+        "--backbone",
+        choices=["mobile_v1", "mobile_v2", "mobile_v3", "squeeze", "simple"],
+    )
     parser.add_argument("--test-only", action="store_true")
-    parser.add_argument("--tencrop", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)
     parser.add_argument(
         "--summary", help="print a summary of model weights", action="store_true"
     )
     parser.add_argument("--auto-batch", action="store_true")
+    parser.add_argument("--auto-lr", action="store_true")
     args = parser.parse_args()
     print(args)
     main(args)
