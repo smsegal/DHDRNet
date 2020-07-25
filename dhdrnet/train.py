@@ -22,8 +22,8 @@ def main(hparams=None):
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
-        batch_size=hparams.batch_size,
-        learning_rate=hparams.lr,
+        batch_size=int(hparams.batch_size),
+        learning_rate=int(hparams.learning_rate),
         want_summary=hparams.summary,
     )
 
