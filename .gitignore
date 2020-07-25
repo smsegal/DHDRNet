@@ -375,4 +375,4 @@ models/*
 precomputed_data/*
 !precomputed_data/*.zst
 data
-checkpoints/*
+checkpoints

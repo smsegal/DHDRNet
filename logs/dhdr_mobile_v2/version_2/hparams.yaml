@@ -1,0 +1,3 @@
+batch_size: 72
+learning_rate: 0.001
+want_summary: false
