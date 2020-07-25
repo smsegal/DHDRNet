@@ -21,12 +21,11 @@ def main(hparams=None):
         Model = models.DHDRSimple
 
     checkpoint_path = hparams.checkpoint_path
-    # if checkpoint_path := hparams.checkpoint_path:
-    #     model = Model.load_from_checkpoint(
-    #         batch_size=80, checkpoint_path=str(checkpoint_path)
-    #     )
-    # else:
-    model = Model(batch_size=72, learning_rate=1e-3, want_summary=hparams.summary,)
+    model = Model(
+        batch_size=hparams.batch_size,
+        learning_rate=hparams.lr,
+        want_summary=hparams.summary,
+    )
 
     timestamp = datetime.datetime.now().isoformat()
     logger = loggers.TensorBoardLogger(
@@ -77,7 +76,9 @@ if __name__ == "__main__":
         "--summary", help="print a summary of model weights", action="store_true"
     )
     parser.add_argument("--auto-batch", action="store_true")
+    parser.add_argument("--batch-size", default=24)
     parser.add_argument("--auto-lr", action="store_true")
+    parser.add_argument("--learning-rate", "-l", default=1e-3)
     args = parser.parse_args()
     print(args)
     main(args)
