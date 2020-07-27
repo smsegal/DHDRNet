@@ -60,7 +60,7 @@ def main(hparams=None):
             ROOT_DIR / f"checkpoints/dhdr_{hparams.backbone}_final{timestamp}.ckpt"
         )
 
-    trainer.test(model)
+    trainer.test()
 
 
 if __name__ == "__main__":

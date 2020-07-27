@@ -63,8 +63,13 @@ class GenAllPairs:
         self.updown_out_path = self.out_path / "updown"
         self.gt_path = self.out_path / "ground_truth"
         # self.image_names = [rp.stem for rp in self.raw_path.iterdir()]
+
         self.image_names = list(
-            flatten(pd.read_csv(ROOT_DIR / "test.txt", header=None).to_numpy())
+            flatten(
+                pd.read_csv(
+                    ROOT_DIR / "precomputed_data" / "test_current.csv"
+                ).to_numpy()
+            )
         )
 
         if compute_scores:

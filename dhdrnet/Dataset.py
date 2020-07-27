@@ -24,7 +24,7 @@ class LUTDataset(Dataset):
         self.exposure_path = exposure_path
         self.transform = transform
 
-        names = flatten(pd.read_csv(name_list, header=None).to_numpy())
+        names = flatten(pd.read_csv(name_list).to_numpy())
         df = df.set_index("name")
 
         # ev 0

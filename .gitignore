@@ -375,4 +375,5 @@ models/*
 precomputed_data/*
 !precomputed_data/*.zst
 data
-checkpoints
+checkpoints/*
+*/notebooks/lightning_logs
