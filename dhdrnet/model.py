@@ -13,15 +13,9 @@ from torchsummary import summary
 from torchvision import models
 from torchvision.transforms import (
     Compose,
-    FiveCrop,
-    Lambda,
-    RandomChoice,
-    RandomCrop,
     RandomHorizontalFlip,
-    RandomRotation,
     RandomVerticalFlip,
     Resize,
-    TenCrop,
     ToTensor,
 )
 
@@ -30,7 +24,7 @@ from dhdrnet.squeezenet import squeezenet1_1
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
-class DHDRNet(LightningModule):  # pylint: disable=too-many-ancestors
+class DHDRNet(LightningModule):
     def __init__(
         self, learning_rate=1e-3, batch_size=8, want_summary=False, *args, **kwargs
     ):

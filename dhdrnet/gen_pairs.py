@@ -125,7 +125,7 @@ class GenAllPairs:
     def compute_updown(self, image_names):
         records = []
         for name in tqdm(image_names, total=len(image_names)):
-            for ev in range(1, 5):
+            for ev in range(1, 6):
                 updown_img = self.get_updown(name, ev)
                 ground_truth = self.get_ground_truth(name)
                 for metric in self.metrics:
@@ -205,7 +205,7 @@ class GenAllPairs:
         return gt_img
 
     def get_updown(self, name, ev):
-        updown_path = self.updown_out_path / f"{name}.png"
+        updown_path = self.updown_out_path / f"{name}_ev[{ev}].png"
         if updown_path.exists():
             updown_img = cv.imread(str(updown_path))
         else:

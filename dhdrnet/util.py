@@ -2,7 +2,6 @@ import csv
 import os
 import random
 from collections import defaultdict
-from collections.abc import Iterable as It
 from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from math import ceil
 from pathlib import Path
@@ -89,14 +88,6 @@ def split_data(data_dir: Path, root_dir: Path) -> DefaultDict[Path, List[Path]]:
                     target = target_dir / source_file.name
                     target.symlink_to(source_file)
     return source_dest_map
-
-
-def flatten(items, ignore_types=(str, bytes)):
-    for x in items:
-        if isinstance(x, It) and not isinstance(x, ignore_types):
-            yield from flatten(x)
-        else:
-            yield x
 
 
 def get_img_name(path: Path) -> str:
