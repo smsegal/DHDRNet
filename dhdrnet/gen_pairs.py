@@ -4,7 +4,7 @@ from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Collection, List, Optional, Union
+from typing import Callable, Collection, List, Optional, Union
 
 import cv2 as cv
 import exifread
@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import rawpy
 import torch
+from torch import nn
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
 from perceptual_similarity import PerceptualLoss
@@ -296,12 +297,12 @@ def fuse(*images: List[np.ndarray]) -> np.ndarray:
     return merged
 
 
-def PerceptualMetric(model="net-lin", net="alex"):
-    model = PerceptualLoss(
-        model=model, net=net, use_gpu=torch.cuda.is_available(), gpu_ids=[0]
+def PerceptualMetric(model_name: str = "net-lin", net: str = "alex") -> Callable:
+    model: nn.Module = PerceptualLoss(
+        model=model_name, net=net, use_gpu=torch.cuda.is_available(), gpu_ids=[0]
     )
 
-    def perceptual_loss_metric(ima, imb):
+    def perceptual_loss_metric(ima: torch.Tensor, imb: torch.Tensor) -> torch.Tensor:
         ima_t, imb_t = map(im2tensor, [ima, imb])
         d = model.forward(ima_t, imb_t).detach().cpu().numpy().flatten()[0]
         return d
