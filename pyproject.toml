@@ -24,6 +24,7 @@ perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilar
 exifread = "^2.1.2"
 torchsummary = "^1.5.1"
 openpyxl = "^3.0.4"
+pylint = "^2.6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -34,6 +35,7 @@ mypy = "^0.770"
 seaborn = "^0.10.1"
 pylama = "^7.7.1"
 altair = "^4.1.0"
+data-science-types = "^0.2.17"
 
 [build-system]
 requires = ["poetry>=0.12"]

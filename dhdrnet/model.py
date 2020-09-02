@@ -116,7 +116,8 @@ class DHDRNet(LightningModule):
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self, outputs: List[Dict[str, Tensor]],
+        self,
+        outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss: Tensor = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs: Dict[str, Tensor] = {"val_loss": avg_loss}

@@ -4,20 +4,22 @@ from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Callable, Collection, List, Optional, Union
+from typing import Callable, Collection, List, Optional
 
 import cv2 as cv
 import exifread
 import numpy as np
+from numpy import dtype
 import pandas as pd
 import rawpy
 import torch
-from torch import nn
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
+from pandas.core.frame import DataFrame
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 from skimage.metrics import mean_squared_error, structural_similarity
+from torch import nn, uint8
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
@@ -56,7 +58,9 @@ class GenAllPairs:
         exp_step: float = 0.25,
         single_threaded: bool = False,
     ):
-        self.exposures = np.arange(exp_min, exp_max + exp_step, exp_step)
+        self.exposures: np.ndarray = np.linspace(
+            exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
+        )
         self.raw_path = raw_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
@@ -64,7 +68,6 @@ class GenAllPairs:
         self.updown_out_path = self.out_path / "updown"
         self.gt_path = self.out_path / "ground_truth"
         # self.image_names = [rp.stem for rp in self.raw_path.iterdir()]
-
         self.image_names = list(
             flatten(
                 pd.read_csv(
@@ -88,6 +91,7 @@ class GenAllPairs:
 
         if store_path:
             self.store_path = store_path
+            self.store: DataFrame
             if store_path.is_file():
                 self.store = pd.read_csv(
                     store_path, usecols=["name", "metric", "ev1", "ev2", "score"]
@@ -148,11 +152,13 @@ class GenAllPairs:
         )
         options_df["ev1"] = options_df["ev"].apply(lambda d: d[0])
         options_df["ev2"] = options_df["ev"].apply(lambda d: d[1])
-        im_stats = self.store[self.store["name"] == img_name]
+        im_stats: pd.Series = self.store[self.store["name"] == img_name]
 
-        remaining: pd.DataFrame = pd.concat([im_stats, options_df]).drop_duplicates(
-            keep=False, subset=["name", "ev1", "ev2", "metric"]
-        ).drop(columns=["ev", "score"])
+        remaining: pd.DataFrame = (
+            pd.concat([im_stats, options_df])
+            .drop_duplicates(keep=False, subset=["name", "ev1", "ev2", "metric"])
+            .drop(columns=["ev", "score"])
+        )
 
         for row in remaining.itertuples(index=False):
             name = row.name
@@ -201,7 +207,7 @@ class GenAllPairs:
             gt_img = cv.imread(str(gt_fp))
         else:
             image_inputs = self.get_exposures(image_name, self.exposures)
-            gt_img = fuse(*image_inputs)
+            gt_img = fuse(image_inputs)
             cv.imwrite(str(gt_fp), gt_img)
         return gt_img
 
@@ -211,7 +217,7 @@ class GenAllPairs:
             updown_img = cv.imread(str(updown_path))
         else:
             images = self.get_exposures(name, [-ev, 0, ev])
-            updown_img = fuse(*images)
+            updown_img = fuse(images)
             cv.imwrite(str(updown_path), updown_img)
         return updown_img
 
@@ -221,7 +227,7 @@ class GenAllPairs:
             rec_img = cv.imread(str(rec_path))
         else:
             im1, im2 = self.get_exposures(name, [ev1, ev2])
-            rec_img = fuse(im1, im2)
+            rec_img = fuse([im1, im2])
             cv.imwrite(str(rec_path), rec_img)
         return rec_img
 
@@ -288,12 +294,14 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
-_ff = cv.createMergeMertens().process
+_ff: Callable[
+    [List[np.ndarray[np.int32]]], np.ndarray[np.float64]
+] = cv.createMergeMertens().process
 
 
-def fuse(*images: List[np.ndarray]) -> np.ndarray:
+def fuse(images: List[np.ndarray[np.int32]]) -> np.ndarray:
     merged = _ff(images)
-    merged = np.clip(merged * 255, 0, 255).astype("uint8")
+    merged = np.clip(merged * 255, 0, 255, dtype=uint8)
     return merged
 
 
@@ -308,19 +316,6 @@ def PerceptualMetric(model_name: str = "net-lin", net: str = "alex") -> Callable
         return d
 
     return perceptual_loss_metric
-
-
-def _present(df, name, metric, ev1, ev2):
-    if len(df) > 0:
-        record = df[
-            (df["metric"] == metric)
-            & (df["ev1"] == ev1)
-            & (df["ev2"] == ev2)
-            & (df["name"] == name)
-        ]
-        return len(record)
-    else:
-        return False
 
 
 if __name__ == "__main__":
