@@ -1,6 +1,8 @@
-from itertools import islice
+from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
 from more_itertools.recipes import flatten
@@ -9,6 +11,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 from dhdrnet.gen_pairs import GenAllPairs
+from more_itertools.more import one
 
 
 class LUTDataset(Dataset):
@@ -64,17 +67,38 @@ class LUTDataset(Dataset):
         label_idx = self.ev_indices[self.opt_choices[index]]
         stats = self.data[self.metric].iloc[index]
         img_name = self.names[index]
-        mid_exp_bgr = list(self.generator.get_exposures(img_name, [0.0]))[0]
+        mid_exp_bgr = one(self.generator.get_exposures(img_name, [0.0]))
         mid_exp_rgb = Image.fromarray(mid_exp_bgr[:, :, [2, 1, 0]])
         mid_exp = self.transform(mid_exp_rgb)
         return mid_exp, label_idx, stats.to_numpy()
+
+
+Bins = np.ndarray
+Buckets = np.ndarrray
+Histogram = Tuple[Bins, Buckets]
+
+
+class HistogramDataset(LUTDataset):
+    """Dataset class for feeding histograms to a
+    fully connected network as a baseline"""
+
+    def __init__(self, *args, bins: int = 100, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bins = bins
+
+    def __getitem__(self, index: int) -> Histogram:
+        mid_ev_image, label_idx, stats = super().__getitem__(index)
+        return torch.histc(mid_ev_image, bins=self.bins), label_idx, stats
 
 
 class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self, gt_dir: Path, exp_dir: Path, transform=None,
+        self,
+        gt_dir: Path,
+        exp_dir: Path,
+        transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir

@@ -8,6 +8,9 @@ def main(args:Namespace):
     pass
 
 
+def to_histogram():
+    pass
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Generate statistics for histogram classifier"

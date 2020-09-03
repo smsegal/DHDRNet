@@ -377,3 +377,4 @@ precomputed_data/*
 data
 checkpoints/*
 */notebooks/lightning_logs
+flycheck*

@@ -294,12 +294,10 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
-_ff: Callable[
-    [List[np.ndarray[np.int32]]], np.ndarray[np.float64]
-] = cv.createMergeMertens().process
+_ff: Callable[[List[np.ndarray]], np.ndarray]] = cv.createMergeMertens().process
 
 
-def fuse(images: List[np.ndarray[np.int32]]) -> np.ndarray:
+def fuse(images: List[np.ndarray]) -> np.ndarray:
     merged = _ff(images)
     merged = np.clip(merged * 255, 0, 255, dtype=uint8)
     return merged

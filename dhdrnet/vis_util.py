@@ -1,13 +1,17 @@
-
 import matplotlib.pyplot as plt
 import numpy as np
 from more_itertools import flatten
+from itertools import repeat
 from mpl_toolkits.axes_grid1 import ImageGrid
 from PIL import Image
 
 from dhdrnet import image_loader
 
 from .util import DATA_DIR
+
+
+def rgb_bgr_swap(image: np.ndarray) -> np.ndarray:
+    return image[:, :, [2, 1, 0]]
 
 
 def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
@@ -28,7 +32,10 @@ def show_image_grid(images, img_labels=None, num_per_row=2, title=None):
     fig = plt.figure(figsize=(12 * num_per_row, 8 * num_rows))  # 4 x 3/2 ratio
     grid = ImageGrid(fig, 111, nrows_ncols=(num_rows, num_per_row), axes_pad=0.1)
 
-    for ax, im, label, in zip(grid, images, img_labels):
+    if img_labels is None:
+        img_labels = repeat("")
+
+    for (ax, im, label) in zip(grid, images, img_labels):
         ax.imshow(im)
         ax.set_xlabel(label)
 
