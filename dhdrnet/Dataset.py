@@ -1,17 +1,14 @@
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
 
-import numpy as np
 import pandas as pd
 import torch
+from more_itertools.more import one
 from more_itertools.recipes import flatten
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
 from dhdrnet.gen_pairs import GenAllPairs
-from more_itertools.more import one
 
 
 class LUTDataset(Dataset):
@@ -73,20 +70,15 @@ class LUTDataset(Dataset):
         return mid_exp, label_idx, stats.to_numpy()
 
 
-Bins = np.ndarray
-Buckets = np.ndarrray
-Histogram = Tuple[Bins, Buckets]
-
-
 class HistogramDataset(LUTDataset):
     """Dataset class for feeding histograms to a
     fully connected network as a baseline"""
 
-    def __init__(self, *args, bins: int = 100, **kwargs):
+    def __init__(self, bins: int = 100, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bins = bins
 
-    def __getitem__(self, index: int) -> Histogram:
+    def __getitem__(self, index: int):
         mid_ev_image, label_idx, stats = super().__getitem__(index)
         return torch.histc(mid_ev_image, bins=self.bins), label_idx, stats
 

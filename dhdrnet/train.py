@@ -5,6 +5,7 @@ from pytorch_lightning import Trainer, loggers
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from dhdrnet import model as models
+from dhdrnet import histogram_model
 from dhdrnet.util import ROOT_DIR
 
 
@@ -19,6 +20,8 @@ def main(hparams=None):
         Model = models.DHDRMobileNet_v3
     elif hparams.backbone == "simple":
         Model = models.DHDRSimple
+    elif hparams.backbone == "hist":
+        Model = histogram_model.HistogramNet
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
@@ -68,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", default=None)
     parser.add_argument(
         "--backbone",
-        choices=["mobile_v1", "mobile_v2", "mobile_v3", "squeeze", "simple"],
+        choices=["mobile_v1", "mobile_v2", "mobile_v3", "squeeze", "simple", "hist"],
     )
     parser.add_argument("--test-only", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)

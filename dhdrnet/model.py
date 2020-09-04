@@ -1,11 +1,10 @@
 from math import ceil
-from typing import Dict, List, Union
+from typing import List, Union
 
 import pandas as pd
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
-from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, random_split
@@ -111,16 +110,18 @@ class DHDRNet(pl.LightningModule):
         result.log("train_loss", loss)
         return result
 
-    def validation_step(self, batch, batch_idx) -> pl.EvalResult:
-        loss = self.common_step(batch)
-        result = pl.EvalResult(checkpoint_on=loss)
-        result.log("val_loss", loss)
-        return result
+    # def validation_step(self, batch, batch_idx) -> pl.EvalResult:
+    #     loss = self.common_step(batch)
+    #     result = pl.EvalResult(loss)
+    #     result.log("val_loss", loss)
+    #     return result
+
 
     def test_step(self, batch, batch_idx) -> pl.EvalResult:
         loss = self.common_step(batch)
-        result = pl.EvalResult(checkpoint_on=loss)
+        result = pl.EvalResult(loss)
         result.log("test_loss", loss)
+        return result
 
 
 class DHDRMobileNet_v1(DHDRNet):

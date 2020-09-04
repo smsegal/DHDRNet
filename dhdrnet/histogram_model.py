@@ -1,11 +1,15 @@
-import pytorch_lightning as pl
 from math import ceil
-from torch.utils.data import random_split
-from dhdrnet.util import DATA_DIR, ROOT_DIR
+
 import pandas as pd
+import torch
+from torch import nn
+from torch.nn import functional as F
+from torch.utils.data import random_split
+
 from dhdrnet.Dataset import HistogramDataset
 from dhdrnet.model import DHDRNet
-from torch import nn
+from dhdrnet.util import DATA_DIR, ROOT_DIR
+
 
 class HistogramNet(DHDRNet):
     def __init__(self, bins=100, *args, **kwargs):
@@ -13,9 +17,10 @@ class HistogramNet(DHDRNet):
 
         self.bins = bins
         self.model = nn.Linear(self.bins, self.num_classes)
+        self.criterion = F.cross_entropy
 
-    def forwards(self, x):
-        return self.model(x)
+    def forward(self, x):
+        return torch.relu(self.model(x))
 
     def prepare_data(self):
         data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
