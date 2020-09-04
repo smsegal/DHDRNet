@@ -4,7 +4,7 @@ from typing import Dict, List, Union
 import pandas as pd
 import torch
 import torch.nn as nn
-from pytorch_lightning import LightningModule
+import pytorch_lightning as pl
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -24,7 +24,7 @@ from dhdrnet.squeezenet import squeezenet1_1
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
 
-class DHDRNet(LightningModule):
+class DHDRNet(pl.LightningModule):
     def __init__(
         self, learning_rate=1e-3, batch_size=8, want_summary=False, *args, **kwargs
     ):
@@ -32,6 +32,7 @@ class DHDRNet(LightningModule):
 
         self.learning_rate = learning_rate
         self.batch_size = batch_size
+        self.num_classes = 36
         self.save_hyperparameters()
 
     def print_summary(self, model, size):
@@ -99,51 +100,37 @@ class DHDRNet(LightningModule):
         return [optimizer], [scheduler]
 
     def common_step(self, batch):
-        mid_exposure, label, stats = batch
-        outputs = self(mid_exposure)
+        inputs, labels, stats = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, labels)
+        return loss
 
-        loss = self.criterion(outputs, label)
-        return loss, stats
+    def training_step(self, batch, batch_idx) -> pl.TrainResult:
+        loss = self.common_step(batch)
+        result = pl.TrainResult(minimize=loss)
+        result.log("train_loss", loss)
+        return result
 
-    def training_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, stats = self.common_step(batch)
-        logs = {"train_loss": loss}
-        return {"loss": loss, "log": logs}
+    def validation_step(self, batch, batch_idx) -> pl.EvalResult:
+        loss = self.common_step(batch)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log("val_loss", loss)
+        return result
 
-    def validation_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, stats = self.common_step(batch)
-        logs = {"val_loss": loss}
-        return {"val_loss": loss, "log": logs}
-
-    def validation_epoch_end(
-        self,
-        outputs: List[Dict[str, Tensor]],
-    ) -> Dict[str, Union[Dict, Tensor]]:
-        avg_loss: Tensor = torch.stack([x["val_loss"] for x in outputs]).mean()
-        tensorboard_logs: Dict[str, Tensor] = {"val_loss": avg_loss}
-        logs = {"val_loss": avg_loss, "log": tensorboard_logs}
-        return logs
-
-    def test_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, stats = self.common_step(batch)
-        logs = {"test_loss": loss}
-        return {"test_loss": loss, "log": logs}
-
-    def test_epoch_end(self, outputs) -> Dict[str, Union[Dict, Tensor]]:
-        avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
-        tensorboard_logs = {"test_loss": avg_loss}
-        return {"test_loss": avg_loss, "log": tensorboard_logs}
+    def test_step(self, batch, batch_idx) -> pl.EvalResult:
+        loss = self.common_step(batch)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log("test_loss", loss)
 
 
 class DHDRMobileNet_v1(DHDRNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         self.feature_extractor.classifier = nn.Sequential(
             nn.Dropout(0.2),
-            nn.Linear(self.feature_extractor.last_channel, num_classes),
+            nn.Linear(self.feature_extractor.last_channel, self.num_classes),
         )
         self.criterion = nn.CrossEntropyLoss()
 
@@ -156,11 +143,10 @@ class DHDRMobileNet_v2(DHDRNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         self.feature_extractor.classifier = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(self.feature_extractor.last_channel, num_classes),
+            nn.Linear(self.feature_extractor.last_channel, self.num_classes),
         )
         self.criterion = nn.CrossEntropyLoss()
 
@@ -175,7 +161,6 @@ class DHDRMobileNet_v3(DHDRNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        num_classes = 36
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         # self.feature_extractor.eval()
         self.feature_extractor.classifier = nn.Sequential(
@@ -185,7 +170,7 @@ class DHDRMobileNet_v3(DHDRNet):
                 self.feature_extractor.last_channel // 2,
             ),
             nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
-            nn.Linear(self.feature_extractor.last_channel // 2, num_classes),
+            nn.Linear(self.feature_extractor.last_channel // 2, self.num_classes),
         )
         self.criterion = nn.CrossEntropyLoss()
 
@@ -199,8 +184,8 @@ class DHDRMobileNet_v3(DHDRNet):
 class DHDRSqueezeNet(DHDRNet):
     def __init__(self, want_summary=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        num_classes = 36
-        self.inner_model = squeezenet1_1(pretrained=False, num_classes=num_classes)
+
+        self.inner_model = squeezenet1_1(pretrained=False, num_classes=self.num_classes)
 
         if want_summary:
             super().print_summary(self.inner_model, size=(1, 300, 300))
@@ -216,8 +201,7 @@ class DHDRSimple(DHDRNet):
     def __init__(self, want_summary=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        num_classes = 36
-        self.model = self._simple_model(num_classes)
+        self.model = self._simple_model(self.num_classes)
 
         if want_summary:
             super().print_summary(self.model, size=(1, 300, 300))
