@@ -16,11 +16,18 @@ class HistogramNet(DHDRNet):
         super().__init__(*args, **kwargs)
 
         self.bins = bins
-        self.model = nn.Linear(self.bins, self.num_classes)
+        self.model = nn.Sequential(
+            nn.Linear(self.bins, self.bins),
+            nn.ReLU(),
+            nn.Linear(self.bins, self.bins),
+            nn.ReLU(),
+            nn.Linear(self.bins, self.num_classes),
+            nn.ReLU(),
+        )
         self.criterion = F.cross_entropy
 
     def forward(self, x):
-        return torch.relu(self.model(x))
+        return self.model(x)
 
     def prepare_data(self):
         data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
