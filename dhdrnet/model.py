@@ -89,7 +89,7 @@ class DHDRNet(LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = Adam(self.parameters(), lr=self.learning_rate, weight_decay=1e-5)
         scheduler = ReduceLROnPlateau(optimizer)
         return [optimizer], [scheduler]
 

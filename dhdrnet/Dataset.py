@@ -39,8 +39,8 @@ class LUTDataset(Dataset):
         )
         by_ev = by_ev.loc[by_ev.index.intersection(names)]
 
-        evs = sorted(baseline_df["ev"].unique())
-        self.ev_indices = {ev: i for (i, ev) in enumerate(evs)}
+        self.evs = sorted(baseline_df["ev"].unique())
+        self.ev_indices = {ev: i for (i, ev) in enumerate(self.evs)}
 
         self.opt_choices = by_ev[metric].idxmin(axis=1)
         self.metric = metric
@@ -62,12 +62,11 @@ class LUTDataset(Dataset):
             raise IndexError()
 
         label_idx = self.ev_indices[self.opt_choices[index]]
-        stats = self.data[self.metric].iloc[index]
         img_name = self.names[index]
         mid_exp_bgr = one(self.generator.get_exposures(img_name, [0.0]))
         mid_exp_rgb = Image.fromarray(mid_exp_bgr[:, :, [2, 1, 0]])
         mid_exp = self.transform(mid_exp_rgb)
-        return mid_exp, label_idx, stats.to_numpy()
+        return mid_exp, label_idx, img_name
 
 
 class HistogramDataset(LUTDataset):

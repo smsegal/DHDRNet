@@ -67,7 +67,6 @@ class GenAllPairs:
         self.reconstructed_out_path = self.out_path / "reconstructions"
         self.updown_out_path = self.out_path / "updown"
         self.gt_path = self.out_path / "ground_truth"
-        # self.image_names = [rp.stem for rp in self.raw_path.iterdir()]
         self.image_names = list(
             flatten(
                 pd.read_csv(
@@ -226,6 +225,8 @@ class GenAllPairs:
         if rec_path.exists():
             rec_img = cv.imread(str(rec_path))
         else:
+            print("GENERATING RECONSTRUCTION FROM SCRATCH!!")
+            print(f"{ev1=}, {ev2=}")
             im1, im2 = self.get_exposures(name, [ev1, ev2])
             rec_img = fuse([im1, im2])
             cv.imwrite(str(rec_path), rec_img)

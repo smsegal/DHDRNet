@@ -7,6 +7,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dhdrnet import histogram_model
 from dhdrnet import model as models
 from dhdrnet import resnet_model
+from dhdrnet import reconstruction_model
 from dhdrnet.util import ROOT_DIR
 
 
@@ -25,6 +26,8 @@ def main(hparams=None):
         Model = histogram_model.HistogramNet
     elif hparams.backbone == "resnet":
         Model = resnet_model.DHDRResnet
+    elif hparams.backbone == "reconstruction":
+        Model = reconstruction_model.RCNet
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
@@ -82,6 +85,7 @@ if __name__ == "__main__":
             "simple",
             "hist",
             "resnet",
+            "reconstruction"
         ],
     )
     parser.add_argument("--test-only", action="store_true")
