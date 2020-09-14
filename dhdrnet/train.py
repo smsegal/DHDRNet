@@ -2,10 +2,11 @@ import datetime
 from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer, loggers
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-from dhdrnet import model as models
 from dhdrnet import histogram_model
+from dhdrnet import model as models
+from dhdrnet import resnet_model
 from dhdrnet.util import ROOT_DIR
 
 
@@ -22,6 +23,8 @@ def main(hparams=None):
         Model = models.DHDRSimple
     elif hparams.backbone == "hist":
         Model = histogram_model.HistogramNet
+    elif hparams.backbone == "resnet":
+        Model = resnet_model.DHDRResnet
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
@@ -71,7 +74,15 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", default=None)
     parser.add_argument(
         "--backbone",
-        choices=["mobile_v1", "mobile_v2", "mobile_v3", "squeeze", "simple", "hist"],
+        choices=[
+            "mobile_v1",
+            "mobile_v2",
+            "mobile_v3",
+            "squeeze",
+            "simple",
+            "hist",
+            "resnet",
+        ],
     )
     parser.add_argument("--test-only", action="store_true")
     parser.add_argument("-c", "--checkpoint-path", default=None)

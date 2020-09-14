@@ -11,13 +11,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, random_split
 from torchsummary import summary
 from torchvision import models
-from torchvision.transforms import (
-    Compose,
-    RandomHorizontalFlip,
-    RandomVerticalFlip,
-    Resize,
-    ToTensor,
-)
+from torchvision.transforms import (Compose, RandomHorizontalFlip,
+                                    RandomVerticalFlip, Resize, ToTensor)
 
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.squeezenet import squeezenet1_1
@@ -116,8 +111,7 @@ class DHDRNet(LightningModule):
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self,
-        outputs: List[Dict[str, Tensor]],
+        self, outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss: Tensor = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs: Dict[str, Tensor] = {"val_loss": avg_loss}
