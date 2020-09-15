@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 from dhdrnet.gen_pairs import GenAllPairs
+from dhdrnet.util import centercrop, min_shape
 
 
 class LUTDataset(Dataset):
@@ -69,6 +70,25 @@ class LUTDataset(Dataset):
         return mid_exp, label_idx, img_name
 
 
+class RCDataset(LUTDataset):
+    def __getitem__(self, index):
+        mid_exp, label, name = super().__getitem__(index)
+        ground_truth = self.generator.get_ground_truth(name)
+        return mid_exp, ground_truth, name
+
+    @staticmethod
+    def collate_fn(batch):
+        mid_exposures, ground_truths, names = zip(*batch)
+        minw, minh, _minc = min_shape(mid_exposures)
+        mid_exp_t = torch.stack(
+            [torch.tensor(im) for im in centercrop(mid_exposures, [minw, minh])]
+        )
+        ground_truth_t = torch.stack(
+            [torch.tensor(im) for im in centercrop(ground_truths, [minw, minh])]
+        )
+        return mid_exp_t, ground_truth_t, names
+
+
 class HistogramDataset(LUTDataset):
     """Dataset class for feeding histograms to a
     fully connected network as a baseline"""
@@ -86,10 +106,7 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self,
-        gt_dir: Path,
-        exp_dir: Path,
-        transform=None,
+        self, gt_dir: Path, exp_dir: Path, transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir

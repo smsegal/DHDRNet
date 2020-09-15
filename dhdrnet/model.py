@@ -11,8 +11,13 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, random_split
 from torchsummary import summary
 from torchvision import models
-from torchvision.transforms import (Compose, RandomHorizontalFlip,
-                                    RandomVerticalFlip, Resize, ToTensor)
+from torchvision.transforms import (
+    Compose,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    Resize,
+    ToTensor,
+)
 
 from dhdrnet.Dataset import LUTDataset
 from dhdrnet.squeezenet import squeezenet1_1
@@ -27,6 +32,7 @@ class DHDRNet(LightningModule):
         self.num_classes = 36
         self.learning_rate = learning_rate
         self.batch_size = batch_size
+        self.Dataset = LUTDataset
         self.save_hyperparameters()
 
     def print_summary(self, model, size):
@@ -46,7 +52,7 @@ class DHDRNet(LightningModule):
         )
 
         data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
-        trainval_data = LUTDataset(
+        trainval_data = self.Dataset(
             df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",
@@ -54,7 +60,7 @@ class DHDRNet(LightningModule):
             transform=transform,
         )
 
-        test_data = LUTDataset(
+        test_data = self.Dataset(
             df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",

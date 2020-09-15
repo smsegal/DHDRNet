@@ -103,6 +103,11 @@ def get_mid_exp(path: Path):
     return next(possible_exps)
 
 
+def min_shape(images: List):
+    shapes = (im.shape for im in images)
+    return map(min, zip(*shapes))
+
+
 def min_centercrop(images: List):
     shapes = (im.shape for im in images)
     return centercrop(images, map(min, zip(*shapes)))

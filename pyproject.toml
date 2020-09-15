@@ -24,6 +24,7 @@ perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilar
 exifread = "^2.1.2"
 torchsummary = "^1.5.1"
 openpyxl = "^3.0.4"
+sklearn = "^0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
