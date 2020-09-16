@@ -5,11 +5,11 @@ import torch
 from more_itertools.more import one
 from more_itertools.recipes import flatten
 from PIL import Image
+from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torchvision import transforms
 
 from dhdrnet.gen_pairs import GenAllPairs
-from dhdrnet.util import centercrop, min_shape
 
 
 class LUTDataset(Dataset):
@@ -72,21 +72,12 @@ class LUTDataset(Dataset):
 
 class RCDataset(LUTDataset):
     def __getitem__(self, index):
-        mid_exp, label, name = super().__getitem__(index)
-        ground_truth = self.generator.get_ground_truth(name)
-        return mid_exp, ground_truth, name
+        mid_exp, _label, name = super().__getitem__(index)
+        mse = self.data.iloc[index][self.metric]
+        norm_inv = 1 - (mse.to_numpy() / mse.max())
+        mse_probabilities = F.softmax(torch.tensor(norm_inv, dtype=torch.float), dim=0)
 
-    @staticmethod
-    def collate_fn(batch):
-        mid_exposures, ground_truths, names = zip(*batch)
-        minw, minh, _minc = min_shape(mid_exposures)
-        mid_exp_t = torch.stack(
-            [torch.tensor(im) for im in centercrop(mid_exposures, [minw, minh])]
-        )
-        ground_truth_t = torch.stack(
-            [torch.tensor(im) for im in centercrop(ground_truths, [minw, minh])]
-        )
-        return mid_exp_t, ground_truth_t, names
+        return mid_exp, mse_probabilities, name
 
 
 class HistogramDataset(LUTDataset):

@@ -1,16 +1,12 @@
-from typing import Union, List
+from typing import List, Union
 
-import numpy as np
-import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import models
 
-import dhdrnet.util as util
 from dhdrnet.Dataset import RCDataset
-from dhdrnet.gen_pairs import GenAllPairs
 from dhdrnet.model import DHDRNet
-from dhdrnet.util import DATA_DIR
 
 
 class RCNet(DHDRNet):
@@ -18,20 +14,6 @@ class RCNet(DHDRNet):
         super().__init__(*args, **kwargs)
 
         self.Dataset = RCDataset
-        self.gen = GenAllPairs(
-            raw_path=DATA_DIR / "dngs",
-            out_path=DATA_DIR / "correct_exposures",
-            store_path=None,
-            compute_scores=False,
-        )
-
-        exp_min = -3
-        exp_max = 6
-        exp_step = 0.25
-        self.exposures = np.linspace(
-            exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
-        )
-
         self.feature_extractor = models.mobilenet_v2(pretrained=False)
         self.feature_extractor.classifier = nn.Sequential(
             nn.Dropout(0.5),
@@ -41,26 +23,17 @@ class RCNet(DHDRNet):
             ),
             nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
             nn.Linear(self.feature_extractor.last_channel // 2, self.num_classes),
+            nn.Softmax(dim=0),
         )
         self.criterion = nn.MSELoss()
 
-    def get_reconstructions(self, names, evs):
-        reconstructions = [
-            self.gen.get_reconstruction(name, "0.0", ev)[:, :, [2, 1, 0]]
-            for name, ev in zip(names, evs)
-        ]
-        reconstructions = util.centercrop(reconstructions,)
-        stacked = torch.stack(reconstructions)
-        return stacked
-
     def common_step(self, batch):
-        mid_exposures, ground_truth, names = batch
-        outputs = self(mid_exposures)
-        _, predicted_ev_idx = torch.max(outputs, 1)
-        predicted_evs = [self.exposures[ev_idx] for ev_idx in predicted_ev_idx]
-        reconstructions = self.get_reconstructions(names, predicted_evs)
+        mid_exposures, y_true, names = batch
+        y_pred = self(mid_exposures)
 
-        loss = self.criterion(reconstructions, ground_truth)
+        loss = F.mse_loss(y_pred, y_true)
+        # print(f"{mid_exposures.dtype=}")
+        # print(f"computed {loss=} with \n\n{y_pred=} \n\n{y_true=}")
         return loss
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
@@ -69,7 +42,7 @@ class RCNet(DHDRNet):
             batch_size=self.batch_size,
             num_workers=8,
             pin_memory=True,
-            collate_fn=RCDataset.collate_fn,
+            # collate_fn=RCDataset.collate_fn,
         )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
@@ -78,7 +51,7 @@ class RCNet(DHDRNet):
             batch_size=self.batch_size,
             pin_memory=True,
             num_workers=8,
-            collate_fn=RCDataset.collate_fn,
+            # collate_fn=RCDataset.collate_fn,
         )
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
@@ -87,7 +60,7 @@ class RCNet(DHDRNet):
             batch_size=self.batch_size,
             pin_memory=True,
             num_workers=8,
-            collate_fn=RCDataset.collate_fn,
+            # collate_fn=RCDataset.collate_fn,
         )
 
     def forward(self, x):

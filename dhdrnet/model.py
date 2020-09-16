@@ -104,15 +104,15 @@ class DHDRNet(LightningModule):
         outputs = self(mid_exposure)
 
         loss = self.criterion(outputs, label)
-        return loss, stats
+        return loss
 
     def training_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, stats = self.common_step(batch)
+        loss = self.common_step(batch)
         logs = {"train_loss": loss}
         return {"loss": loss, "log": logs}
 
     def validation_step(self, batch, batch_idx) -> Dict[str, Union[Dict, Tensor]]:
-        loss, stats = self.common_step(batch)
+        loss = self.common_step(batch)
         logs = {"val_loss": loss}
         return {"val_loss": loss, "log": logs}
 

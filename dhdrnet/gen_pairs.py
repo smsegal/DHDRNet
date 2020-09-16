@@ -9,7 +9,6 @@ from typing import Callable, Collection, List, Optional
 import cv2 as cv
 import exifread
 import numpy as np
-from numpy import dtype
 import pandas as pd
 import rawpy
 import torch
@@ -19,7 +18,7 @@ from pandas.core.frame import DataFrame
 from perceptual_similarity import PerceptualLoss
 from perceptual_similarity.util.util import im2tensor
 from skimage.metrics import mean_squared_error, structural_similarity
-from torch import nn, uint8
+from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
