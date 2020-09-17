@@ -24,6 +24,7 @@ print(DATA_DIR)
   )
  
 
+
   test_data = RCDataset(
       df=pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv"),
       exposure_path=DATA_DIR / "correct_exposures" / "exposures",
