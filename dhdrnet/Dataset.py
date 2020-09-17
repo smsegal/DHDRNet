@@ -74,6 +74,7 @@ class RCDataset(LUTDataset):
     def __getitem__(self, index):
         mid_exp, _label, name = super().__getitem__(index)
         mse = self.data.iloc[index][self.metric]
+        # mse = torch.tensor(mse, dtype=torch.float)
         norm_inv = 1 - (mse.to_numpy() / mse.max())
         mse_probabilities = F.softmax(torch.tensor(norm_inv, dtype=torch.float), dim=0)
 

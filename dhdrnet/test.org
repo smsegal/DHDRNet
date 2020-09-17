@@ -1,6 +1,7 @@
 #+TITLE: Test Tables and such
 #+PROPERTY: header-args :session /jpy::2cb39fd3-a8f7-4c79-9942-1187fed51c1c :async yes
 
+* Testing Converting the Errors to Probabilities
 #+BEGIN_SRC jupyter-python
 import pandas as pd
 import numpy as np
@@ -14,15 +15,104 @@ print(DATA_DIR)
 : /home/shane/Development/DHDRNet/data
 
 #+BEGIN_SRC jupyter-python
-  from dhdrnet.Dataset import LUTDataset
+  from dhdrnet.Dataset import RCDataset
 
-  test_data = LUTDataset(
+  from torchvision.transforms import (
+      Compose,
+      Resize,
+      ToTensor,
+  )
+
+  test_data = RCDataset(
       df=pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv"),
       exposure_path=DATA_DIR / "correct_exposures" / "exposures",
       raw_dir=DATA_DIR / "dngs",
       name_list=ROOT_DIR / "precomputed_data" / "test_current.csv",
+      transform=Compose([Resize((300, 300)), ToTensor()]),
   )
-  test_data.data["mse"]
+  test_data.data["mse"][:10]
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ev                              -3.00        -2.75        -2.50        -2.25  \
+0006_20160721_170707_736  1564.444742  1620.747432  1666.827206  1694.827552
+0006_20160721_175239_909  4833.678364  4931.049788  5023.474798  5096.684604
+0006_20160721_181525_062  4030.755679  4099.319882  4154.594938  4191.564140
+0006_20160722_100126_028  3096.586446  3195.740610  3285.280822  3355.353795
+0006_20160722_100951_201   256.802163   291.744275   325.948450   357.335873
+0006_20160722_121326_807  3618.651904  3732.117487  3825.967152  3904.588041
+0006_20160722_133733_011  2819.645692  2896.354841  2958.680770  3007.476232
+0006_20160722_163758_882  5167.440527  5257.734458  5349.125278  5421.920375
+0006_20160723_110036_978  7422.320242  7540.134805  7652.270909  7753.180930
+0006_20160723_152642_719  2055.678662  2083.234870  2092.246651  2084.297329
+
+ev                              -2.00        -1.75        -1.50        -1.25  \
+0006_20160721_170707_736  1703.434451  1598.156467  1594.859254  1543.512098
+0006_20160721_175239_909  5149.722950  5132.641241  5127.621899  5039.689928
+0006_20160721_181525_062  4196.336224  4112.124243  4107.827877  4003.839777
+0006_20160722_100126_028  3393.217263  3398.260426  3304.577579  3260.788758
+0006_20160722_100951_201   380.441056   381.866729   382.741421   353.604755
+0006_20160722_121326_807  3950.512108  3911.834835  3910.611075  3820.936846
+0006_20160722_133733_011  3025.356287  2963.289332  2957.582182  2864.626686
+0006_20160722_163758_882  5469.449818  5485.314926  5453.550879  5152.223393
+0006_20160723_110036_978  7836.016895  7884.808248  7890.082721  7732.112226
+0006_20160723_152642_719  2051.044455  1884.957956  1881.338167  1790.760244
+
+ev                              -1.00        -0.75  ...        3.75  \
+0006_20160721_170707_736  1416.238552  1255.256251  ...  204.894840
+0006_20160721_175239_909  4886.487238  4668.281993  ...   97.861535
+0006_20160721_181525_062  3848.204339  3646.137740  ...  161.401949
+0006_20160722_100126_028  3106.662492  2886.394583  ...  112.903301
+0006_20160722_100951_201   303.291687   235.769308  ...  127.675286
+0006_20160722_121326_807  3655.825409  3420.089835  ...  369.071470
+0006_20160722_133733_011  2709.853371  2499.861789  ...  100.825028
+0006_20160722_163758_882  5133.332916  4989.296448  ...  226.790576
+0006_20160723_110036_978  7704.027588  7484.764641  ...   57.834315
+0006_20160723_152642_719  1650.623988  1487.793109  ...  295.591206
+
+ev                              4.00        4.25         4.50         4.75  \
+0006_20160721_170707_736  266.079117  342.824356   417.325202   479.171636
+0006_20160721_175239_909  113.651506  189.986430   380.395532   683.621096
+0006_20160721_181525_062  151.508049  161.296966   195.781336   260.689689
+0006_20160722_100126_028  191.805441  321.521480   509.792787   743.946110
+0006_20160722_100951_201  125.941866  127.301245   130.924251   137.018390
+0006_20160722_121326_807  609.916489  861.373106  1092.595719  1308.706528
+0006_20160722_133733_011  107.339784  156.058717   255.317674   385.552699
+0006_20160722_163758_882  311.902649  444.603266   605.723157   809.983743
+0006_20160723_110036_978   67.652026   85.185863   123.458199   227.555976
+0006_20160723_152642_719  299.780714  336.458946   398.816925   481.503247
+
+ev                               5.00         5.25         5.50         5.75  \
+0006_20160721_170707_736   532.625834   578.215898   594.875969   604.528252
+0006_20160721_175239_909  1032.792516  1373.295946  1692.185380  2001.375581
+0006_20160721_181525_062   375.625099   563.947176   832.124956  1191.846109
+0006_20160722_100126_028  1008.343893  1273.946062  1511.891965  1682.150097
+0006_20160722_100951_201   141.826089   140.471864   132.713468   122.435351
+0006_20160722_121326_807  1505.443901  1686.989220  1848.714591  1969.296681
+0006_20160722_133733_011   530.996266   694.890044   880.455303  1078.397158
+0006_20160722_163758_882  1091.578328  1455.245789  1910.392377  2406.563111
+0006_20160723_110036_978   468.234780   912.152518  1595.348653  2425.743771
+0006_20160723_152642_719   580.117593   679.898801   768.438360   832.438753
+
+ev                               6.00
+0006_20160721_170707_736   629.531647
+0006_20160721_175239_909  2310.115054
+0006_20160721_181525_062  1607.600744
+0006_20160722_100126_028  1785.318792
+0006_20160722_100951_201   115.151326
+0006_20160722_121326_807  2064.372232
+0006_20160722_133733_011  1259.680172
+0006_20160722_163758_882  2812.746639
+0006_20160723_110036_978  3267.492762
+0006_20160723_152642_719   874.721535
+
+[10 rows x 36 columns]
+#+end_example
+
+#+BEGIN_SRC jupyter-python
+errors = test_data.data["mse"]
+print(errors)
 #+END_SRC
 
 #+RESULTS:
@@ -107,87 +197,158 @@ c483_20150901_221141_886  2037.885017
 
 [724 rows x 36 columns]
 #+end_example
-
-#+BEGIN_SRC jupyter-python
-errors = test_data.data.iloc[0]["mse"]
-print(errors.to_numpy())
-#+END_SRC
-
-#+RESULTS:
-: [1564.44474225 1620.74743187 1666.82720633 1694.82755222 1703.43445062
-:  1598.15646716 1594.85925447 1543.51209757 1416.23855163 1255.25625128
-:  1065.57599049  857.94804301  473.31568409  336.80012584  251.88101098
-:   232.90372869  267.75392563  323.28166661  370.37827512  372.39978134
-:   335.06067559  288.83120235  239.24819666  191.73630419  162.03335002
-:   167.84276284  204.89483976  266.07911743  342.82435575  417.32520223
-:   479.17163606  532.62583388  578.21589823  594.87596859  604.528252
-:   629.53164663]
 So I believe I just want to minimize the predicted probabilities as they correspond to these errors.
 
 #+BEGIN_SRC jupyter-python
 import torch.nn.functional as F
 import torch
 
-err_norm = 1 - (errors.to_numpy() / errors.max())
-error_probabilities = F.softmax(torch.tensor(err_norm), dim=0).numpy()
+err_t = torch.tensor(errors.to_numpy())
+err_norm = 1 - (err_t / err_t.max())
+error_probabilities = F.softmax(err_norm, dim=0).numpy()
 
-mse_prob = pd.DataFrame({"errors": errors, "probabilities": error_probabilities})
-mse_prob
+err_df = pd.DataFrame(error_probabilities, index=errors.index, columns=errors.columns)
+err_df = pd.concat([err_df, errors], keys=("prob", "mse"))
+# err_df = pd.concat((errors, pd.Series(error_probabilities))
+# err_df.xs("5066_20160630_094234_723", level=1)
 #+END_SRC
 
 #+RESULTS:
-#+begin_example
-            errors  probabilities
-ev
--3.00  1564.444742       0.016210
--2.75  1620.747432       0.015683
--2.50  1666.827206       0.015264
--2.25  1694.827552       0.015015
--2.00  1703.434451       0.014940
--1.75  1598.156467       0.015892
--1.50  1594.859254       0.015923
--1.25  1543.512098       0.016410
--1.00  1416.238552       0.017683
--0.75  1255.256251       0.019436
--0.50  1065.575990       0.021725
--0.25   857.948043       0.024542
- 0.25   473.315684       0.030759
- 0.50   336.800126       0.033325
- 0.75   251.881011       0.035028
- 1.00   232.903729       0.035421
- 1.25   267.753926       0.034704
- 1.50   323.281667       0.033591
- 1.75   370.378275       0.032675
- 2.00   372.399781       0.032636
- 2.25   335.060676       0.033359
- 2.50   288.831202       0.034277
- 2.75   239.248197       0.035289
- 3.00   191.736304       0.036287
- 3.25   162.033350       0.036926
- 3.50   167.842763       0.036800
- 3.75   204.894840       0.036008
- 4.00   266.079117       0.034738
- 4.25   342.824356       0.033207
- 4.50   417.325202       0.031786
- 4.75   479.171636       0.030653
- 5.00   532.625834       0.029706
- 5.25   578.215898       0.028921
- 5.50   594.875969       0.028640
- 5.75   604.528252       0.028478
- 6.00   629.531647       0.028063
-#+end_example
 
 #+BEGIN_SRC jupyter-python
 import matplotlib.pyplot as plt
 %matplotlib inline
 
-mse_prob["err_normed"] = err_norm
-mse_prob.plot(subplots=True)
+# mse_prob["err_normed"] = err_norm
+# err_df.loc["prob"].plot(subplots=True,
+torch.tensor(err_df.loc["mse"].aggregate('mean', axis=0).to_numpy())
+# err_df.transpose().plot(subplots=True, layout=(2,2), figsize=(20,20))
+#+END_SRC
+
+#+RESULTS:
+: tensor([5546.8765, 5600.7392, 5646.7133, 5682.0157, 5696.8445, 5674.3663,
+:         5645.4612, 5581.6626, 5479.3326, 5341.7655, 5166.7959, 4950.6514,
+:         4397.9926, 4065.2339, 3701.5903, 3320.4850, 2934.8483, 2553.0027,
+:         2186.2300, 1842.3091, 1528.0872, 1248.4522, 1006.9654,  805.3365,
+:          640.1679,  518.6846,  447.4205,  420.0167,  441.6028,  510.8833,
+:          619.7562,  762.4289,  933.2279, 1132.1481, 1355.8280, 1593.9325],
+:        dtype=torch.float64)
+
+#+BEGIN_SRC jupyter-python
+mean_mse = err_df.loc["mse"].aggregate("mean", axis=0).to_numpy()
+mse_prob = 1 - (mean_mse / mean_mse.max())
+plt.plot(F.softmax(torch.tensor(mse_prob),dim=0))
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-: array([<AxesSubplot:xlabel='ev'>, <AxesSubplot:xlabel='ev'>,
-:        <AxesSubplot:xlabel='ev'>], dtype=object)
-[[file:./.ob-jupyter/9266064c822317dc1550f17f1ca4e75fc78564ec.png]]
+| <matplotlib.lines.Line2D | at | 0x7f80aaa58760> |
+[[file:./.ob-jupyter/2e42026f15e2edf71342c5a5f509b8f44c9af593.png]]
+:END:
+
+* Testing Reconstruction model trained with above probabilities
+
+First things first, load the model:
+#+BEGIN_SRC jupyter-python
+from IPython.utils import io
+from pytorch_lightning import Trainer
+
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+gpus = "0" if torch.cuda.is_available() else None
+
+
+def get_best_model(model_cls, backbone: str):
+
+    with io.capture_output(stdout=True, stderr=True) as _captured:
+        trainer = Trainer(gpus=gpus, progress_bar_refresh_rate=0)
+        test_scores = dict()
+        for ckpt in (ROOT_DIR / "checkpoints").glob(f"*{backbone}*"):
+            model = model_cls.load_from_checkpoint(checkpoint_path=str(ckpt))
+            model.eval()
+
+            test_score = trainer.test(model)["test_loss"]
+            test_scores[str(ckpt.stem)] = test_score, model, ckpt.stem
+
+    best_model = min(test_scores.values(), key=lambda x: x[0])
+    return best_model
+#+END_SRC
+
+#+RESULTS:
+
+This has been run once so no need to do it again, we have the saved name for the model now
+#+BEGIN_SRC jupyter-python
+from dhdrnet.reconstruction_model import RCNet
+
+# trainer = Trainer(gpus=gpus)
+name = "dhdr_reconstruction_final2020-09-15T17:39:29.915663"
+model = RCNet.load_from_checkpoint(
+    checkpoint_path=str(
+        ROOT_DIR
+        / "checkpoints"
+        / f"{name}.ckpt"
+    )
+).to(device)
+# score = trainer.test(model)
+# print(f"{name}: {score}")
+#+END_SRC
+
+#+RESULTS:
+
+Let's get some predictions out of the model and evaluate it.
+
+#+BEGIN_SRC jupyter-python
+from torch.utils.data import DataLoader
+from more_itertools import flatten, one
+
+loader = DataLoader(test_data, batch_size=70, num_workers=8)
+evs = torch.tensor(test_data.evs)
+
+
+def get_ev(evs, indices):
+    return [evs[i] for i in indices]
+
+
+def get_predictions(model, batch):
+    X, y_true, names = batch
+    y_pred = model(X.to(device))
+    _, pred_ev_idx = torch.topk(y_pred,k=4,dim=1)
+    pred_ev = evs[pred_ev_idx]
+
+    true_ev_idx = torch.argmax(y_true, dim=1)
+    true_ev = evs[true_ev_idx]
+    return zip(pred_ev.numpy(), true_ev.numpy())
+
+
+pred_evs, true_evs = zip(*flatten((get_predictions(model, batch) for batch in loader)))
+pred_df = pd.DataFrame({"predicted_evs": pred_evs, "true_evs": true_evs})
+pred_df
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+                 predicted_evs  true_evs
+0      [0.25, 2.25, 4.25, 3.5]      3.25
+1       [3.75, 5.5, -2.5, 6.0]      3.75
+2       [3.75, 4.0, 3.0, 4.75]      4.00
+3      [-1.25, 5.5, 0.5, -1.0]      3.50
+4     [0.75, -2.0, -0.75, 3.5]      6.00
+..                         ...       ...
+719   [4.75, 5.75, -1.5, 1.75]     -0.75
+720     [3.0, 5.5, 1.0, -2.75]      3.75
+721    [4.5, -0.25, 1.0, 2.25]      3.00
+722  [-1.75, -1.5, 4.5, -2.25]      3.00
+723   [0.25, -2.0, 2.25, 4.25]      3.50
+
+[724 rows x 2 columns]
+#+end_example
+
+
+#+BEGIN_SRC jupyter-python
+pred_df.explode("predicted_evs")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+: <AxesSubplot:>
+[[file:./.ob-jupyter/77a5b2ef0c123ed1a37978e4748347db6aaa4f13.png]]
 :END:
