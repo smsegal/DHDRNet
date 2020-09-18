@@ -1,5 +1,5 @@
 #+TITLE: Test Tables and such
-#+PROPERTY: header-args :session /jpy::2cb39fd3-a8f7-4c79-9942-1187fed51c1c :async yes
+#+PROPERTY: header-args :session /jpy::6e0de3986410f1aad8cf8eda722548fd9b5dbecaff36d8f6 :async yes
 
 * Testing Converting the Errors to Probabilities
 #+BEGIN_SRC jupyter-python
@@ -22,6 +22,7 @@ print(DATA_DIR)
       Resize,
       ToTensor,
   )
+ 
 
   test_data = RCDataset(
       df=pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv"),
@@ -237,13 +238,13 @@ torch.tensor(err_df.loc["mse"].aggregate('mean', axis=0).to_numpy())
 #+BEGIN_SRC jupyter-python
 mean_mse = err_df.loc["mse"].aggregate("mean", axis=0).to_numpy()
 mse_prob = 1 - (mean_mse / mean_mse.max())
-plt.plot(F.softmax(torch.tensor(mse_prob),dim=0))
+plt.scatter(x=errors.columns, y=F.softmax(torch.tensor(mse_prob),dim=0))
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-| <matplotlib.lines.Line2D | at | 0x7f80aaa58760> |
-[[file:./.ob-jupyter/2e42026f15e2edf71342c5a5f509b8f44c9af593.png]]
+: <matplotlib.collections.PathCollection at 0x7f6fe3b7b820>
+[[file:./.ob-jupyter/be8b74901ac258ffb3e6fb5add2e59e76397f938.png]]
 :END:
 
 * Testing Reconstruction model trained with above probabilities
@@ -278,6 +279,9 @@ def get_best_model(model_cls, backbone: str):
 This has been run once so no need to do it again, we have the saved name for the model now
 #+BEGIN_SRC jupyter-python
 from dhdrnet.reconstruction_model import RCNet
+from pytorch_lightning import seed_everything
+
+seed_everything(19)
 
 # trainer = Trainer(gpus=gpus)
 name = "dhdr_reconstruction_final2020-09-15T17:39:29.915663"
@@ -300,7 +304,7 @@ Let's get some predictions out of the model and evaluate it.
 from torch.utils.data import DataLoader
 from more_itertools import flatten, one
 
-loader = DataLoader(test_data, batch_size=70, num_workers=8)
+loader = DataLoader(test_data, batch_size=2, num_workers=8)
 evs = torch.tensor(test_data.evs)
 
 
@@ -308,47 +312,57 @@ def get_ev(evs, indices):
     return [evs[i] for i in indices]
 
 
-def get_predictions(model, batch):
+def get_rcnet_predictions(model, batch):
     X, y_true, names = batch
     y_pred = model(X.to(device))
-    _, pred_ev_idx = torch.topk(y_pred,k=4,dim=1)
+    _, pred_ev_idx = torch.topk(y_pred, k=4, dim=1)
     pred_ev = evs[pred_ev_idx]
 
     true_ev_idx = torch.argmax(y_true, dim=1)
     true_ev = evs[true_ev_idx]
-    return zip(pred_ev.numpy(), true_ev.numpy())
+    return zip(names, pred_ev.numpy(), true_ev.numpy())
 
 
-pred_evs, true_evs = zip(*flatten((get_predictions(model, batch) for batch in loader)))
-pred_df = pd.DataFrame({"predicted_evs": pred_evs, "true_evs": true_evs})
+model.eval()
+names, pred_evs, true_evs = zip(
+    *flatten((get_rcnet_predictions(model, batch) for batch in loader))
+)
+
+pred_df = pd.DataFrame({"predicted_evs": pred_evs, "true_evs": true_evs}, index=names)
 pred_df
 #+END_SRC
 
 #+RESULTS:
 #+begin_example
-                 predicted_evs  true_evs
-0      [0.25, 2.25, 4.25, 3.5]      3.25
-1       [3.75, 5.5, -2.5, 6.0]      3.75
-2       [3.75, 4.0, 3.0, 4.75]      4.00
-3      [-1.25, 5.5, 0.5, -1.0]      3.50
-4     [0.75, -2.0, -0.75, 3.5]      6.00
-..                         ...       ...
-719   [4.75, 5.75, -1.5, 1.75]     -0.75
-720     [3.0, 5.5, 1.0, -2.75]      3.75
-721    [4.5, -0.25, 1.0, 2.25]      3.00
-722  [-1.75, -1.5, 4.5, -2.25]      3.00
-723   [0.25, -2.0, 2.25, 4.25]      3.50
+                                       predicted_evs  true_evs
+0006_20160721_170707_736  [-2.75, -3.0, -2.5, -2.25]      3.25
+0006_20160721_175239_909  [-2.75, -3.0, -2.5, -2.25]      3.75
+0006_20160721_181525_062  [-2.75, -3.0, -2.5, -2.25]      4.00
+0006_20160722_100126_028  [-2.75, -3.0, -2.5, -2.25]      3.50
+0006_20160722_100951_201  [-2.75, -3.0, -2.5, -2.25]      6.00
+...                                              ...       ...
+c483_20150901_173210_443  [-2.75, -3.0, -2.5, -2.25]     -0.75
+c483_20150901_194029_165  [-2.75, -3.0, -2.5, -2.25]      3.75
+c483_20150901_195108_436  [-2.75, -3.0, -2.5, -2.25]      3.00
+c483_20150901_214630_530  [-2.75, -3.0, -2.5, -2.25]      3.00
+c483_20150901_221141_886  [-2.75, -3.0, -2.5, -2.25]      3.50
 
 [724 rows x 2 columns]
 #+end_example
 
 
+First run k=2
+: predicted_evs    [-0.75, 3.5]
+: true_evs                 3.25
+: Name: 0006_20160721_170707_736, dtype: object
+
 #+BEGIN_SRC jupyter-python
-pred_df.explode("predicted_evs")
+def topk_accuracy(data: pd.DataFrame, k=4):
+    c = 0
+    for predicted_evs, true_ev in data.itertuples():
+        if true_ev in predicted_evs:
+            c += 1
+
 #+END_SRC
 
 #+RESULTS:
-:RESULTS:
-: <AxesSubplot:>
-[[file:./.ob-jupyter/77a5b2ef0c123ed1a37978e4748347db6aaa4f13.png]]
-:END:
