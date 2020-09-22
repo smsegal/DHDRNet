@@ -28,6 +28,8 @@ def main(hparams=None):
         Model = resnet_model.DHDRResnet
     elif hparams.backbone == "reconstruction":
         Model = reconstruction_model.RCNet
+    elif hparams.backbone == "reconstruction2":
+        Model = reconstruction_model.RCNet2
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
@@ -85,7 +87,8 @@ if __name__ == "__main__":
             "simple",
             "hist",
             "resnet",
-            "reconstruction"
+            "reconstruction",
+            "reconstruction2",
         ],
     )
     parser.add_argument("--test-only", action="store_true")

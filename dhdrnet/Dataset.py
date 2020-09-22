@@ -73,12 +73,22 @@ class LUTDataset(Dataset):
 class RCDataset(LUTDataset):
     def __getitem__(self, index):
         mid_exp, _label, name = super().__getitem__(index)
-        mse = self.data.iloc[index][self.metric]
-        # mse = torch.tensor(mse, dtype=torch.float)
-        norm_inv = 1 - (mse.to_numpy() / mse.max())
-        mse_probabilities = F.softmax(torch.tensor(norm_inv, dtype=torch.float), dim=0)
+        mse = torch.tensor(self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float)
+        max, _ = mse.max(dim=0, keepdim=True)
 
-        return mid_exp, mse_probabilities, name
+        mse_inv = max - mse
+        mse_inv_prob = mse_inv / mse_inv.sum(dim=0, keepdim=True)
+
+        return mid_exp, mse_inv_prob, name
+
+
+class RCDataset2(LUTDataset):
+    def __getitem__(self, index):
+        mid_exp, _label, name = super().__getitem__(index)
+        mse = torch.tensor(
+            self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float
+        )
+        return mid_exp, mse, name
 
 
 class HistogramDataset(LUTDataset):
@@ -98,7 +108,10 @@ class HDRDataset(Dataset):
     """HDR image dataset"""
 
     def __init__(
-        self, gt_dir: Path, exp_dir: Path, transform=None,
+        self,
+        gt_dir: Path,
+        exp_dir: Path,
+        transform=None,
     ):
         self.gt_dir = gt_dir
         self.exp_dir = exp_dir
