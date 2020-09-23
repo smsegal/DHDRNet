@@ -258,7 +258,9 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
             postprocessed = raw.postprocess(use_camera_wb=True, no_auto_bright=True)[
                 :, :, channel_swapper
             ]
-            newsize = tuple(postprocessed.shape[:2] // np.array([8]))
+
+            #uhh I think this might be swapping w/h
+            newsize = tuple(postprocessed.shape[:2] // np.array([8]))[::-1]
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
 
