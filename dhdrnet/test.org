@@ -418,7 +418,8 @@ RuntimeError                              Traceback (most recent call last)
     347                             weight, self.bias, self.stride,
     348                             _pair(0), self.dilation, self.groups)
 --> 349         return F.conv2d(input, weight, self.bias, self.stride,
-    350                         self.padding, self.dilation, self.groups)
+    350
+self.padding, self.dilation, self.groups)
     351
 
 RuntimeError: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same

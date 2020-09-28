@@ -20,11 +20,11 @@ recordclass = "^0.13.2"
 pandas = "^1.0.4"
 tables = "^3.6.1"
 sewar = "^0.4.3"
-perceptual-similarity-pytorch = {git = "git@github.com:smsegal/PerceptualSimilarity.git"}
 exifread = "^2.1.2"
 torchsummary = "^1.5.1"
 openpyxl = "^3.0.4"
 sklearn = "^0.0"
+lpips = "^0.1.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
