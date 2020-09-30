@@ -1,6 +1,7 @@
 {
-    "python.pythonPath": "/home/shane/.cache/pypoetry/virtualenvs/dhdrnet-CxDQYEDG-py3.8/bin/python",
+    "python.pythonPath": "/home/shane/.cache/pypoetry/virtualenvs/dhdrnet-md5k9ngR-py3.8/bin/python",
     "python.linting.mypyEnabled": false,
     "python.linting.pylamaEnabled": true,
-    "python.linting.enabled": true
+    "python.linting.enabled": true,
+    "python.formatting.provider": "black"
 }

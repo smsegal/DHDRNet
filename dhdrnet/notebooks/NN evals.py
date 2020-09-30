@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 
+MODEL_DIR = ROOT_DIR / "checkpoints"
 print(DATA_DIR)
 
 # %%
@@ -79,11 +80,20 @@ plt.scatter(x=errors.columns, y=F.softmax(torch.tensor(mse_prob), dim=0))
 # %%
 from IPython.utils import io
 from pytorch_lightning import Trainer
+from pathlib import Path
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 gpus = "0" if torch.cuda.is_available() else None
 
 trainer = Trainer(gpus=gpus, progress_bar_refresh_rate=0)
+
+
+def check_for_model(model_type):
+    name = f"best_{model_type}.ckpt"
+    full_path = MODEL_DIR / name
+    if full_path.exists():
+        return full_path
+    return None
 
 
 def load_test_model(ckpt, model_cls):
@@ -95,13 +105,23 @@ def load_test_model(ckpt, model_cls):
     return test_score, model, ckpt.stem
 
 
-def get_best_model(model_cls, backbone: str):
-    test_scores = dict()
-    for ckpt in (ROOT_DIR / "checkpoints").glob(f"*{backbone}*.ckpt"):
-        test_scores[str(ckpt.stem)] = load_test_model(ckpt, model_cls)
+def get_best_model(model_cls, backbone: str, use_saved=True):
+    potential_model = check_for_model(backbone)
+    if (potential_model is not None) and use_saved:
+        print("Loading stored best model")
+        return load_test_model(potential_model, model_cls)
+    else:
+        test_scores = dict()
+        for ckpt in MODEL_DIR.glob(f"*{backbone}*.ckpt"):
+            test_scores[str(ckpt.stem)] = load_test_model(ckpt, model_cls)
 
-    best_model = min(test_scores.values(), key=lambda x: x[0])
-    return best_model
+        best_score, best_model, best_name = min(
+            test_scores.values(), key=lambda x: x[0]
+        )
+        (MODEL_DIR / f"best_{backbone}.ckpt").symlink_to(
+            MODEL_DIR / f"{best_name}.ckpt"
+        )
+        return best_score, best_model, best_name
 
 
 # %%
@@ -112,27 +132,14 @@ from dhdrnet.resnet_model import DHDRResnet
 from dhdrnet.Dataset import LUTDataset, RCDataset
 from pytorch_lightning import seed_everything
 
-
 seed_everything(19)
-if all(
-    model_name in globals()
-    for model_name in ["rcnet_name", "mobile_name", "resnet_name", "squeeze_name"]
-):
-    print("model names defined")
-    rcnet_score, rcnet_model, _ = load_test_model(rc_name, RCNet)
-    mobile_score, mobile_model, _ = load_test_model(mobile_name, DHDRMobileNet_v3)
-    resnet_score, resnet_model, _ = load_test_model(resnet_name, DHDRResnet)
-    squeeze_score, squeeze_model, _ = load_test_model(squeeze_name, DHDRSqueezeNet)
-else:
-    print("finding best models")
-    rcnet_score, rcnet_model, rc_name = get_best_model(RCNet, "reconstruction")
-    mobile_score, mobile_model, mobile_name = get_best_model(
-        DHDRMobileNet_v3, "mobile_v3"
-    )
-    resnet_score, resnet_model, resnet_name = get_best_model(DHDRResnet, "resnet")
-    squeeze_score, squeeze_model, squeeze_name = get_best_model(
-        DHDRSqueezeNet, "squeeze"
-    )
+
+
+print("finding best models")
+rcnet_score, rcnet_model, rc_name = get_best_model(RCNet, "reconstruction")
+mobile_score, mobile_model, mobile_name = get_best_model(DHDRMobileNet_v3, "mobile_v3")
+resnet_score, resnet_model, resnet_name = get_best_model(DHDRResnet, "resnet")
+squeeze_score, squeeze_model, squeeze_name = get_best_model(DHDRSqueezeNet, "squeeze")
 
 print(f"{mobile_score=}")
 print(f"{resnet_score=}")
@@ -244,4 +251,18 @@ kdf.to_latex(figdir / "topk_table.tex")
 # * randomly select an exposure as secondary choice
 # * compare the overall MSE of this sample
 
+# %%
+
+import random as rand
+df = test_data.data
+# rand_ev = rand.choices(range(0,len(df["mse"].columns)), k=len(df))
+# df.take(rand_ev,axis=0)
+rand_sel = dict()
+for name, data in df.iterrows():
+    ev = rand.choice(df["mse"].columns)
+    rand_sel[name] = (ev, data["mse"][ev])
+    
+
+mean_err = np.mean([x[1] for x in rand_sel.values()])
+mean_err
 # %%
