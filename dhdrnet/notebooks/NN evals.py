@@ -265,4 +265,4 @@ for name, data in df.iterrows():
 
 mean_err = np.mean([x[1] for x in rand_sel.values()])
 mean_err
-# %%
+# %% 
