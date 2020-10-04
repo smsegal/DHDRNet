@@ -12,14 +12,15 @@ import numpy as np
 import pandas as pd
 import rawpy
 import torch
+from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
 from pandas.core.frame import DataFrame
-from lpips import LPIPS, im2tensor
-
-# from perceptual_similarity import PerceptualLoss
-# from perceptual_similarity.util.util import im2tensor
-from skimage.metrics import mean_squared_error, structural_similarity
+from skimage.metrics import (
+    mean_squared_error,
+    peak_signal_noise_ratio,
+    structural_similarity,
+)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
@@ -52,7 +53,7 @@ class GenAllPairs:
         self,
         raw_path: Path,
         out_path: Path,
-        store_path: Optional[Path],
+        store_path: Optional[Path] = None,
         compute_scores=True,
         exp_min: float = -3,
         exp_max: float = 6,
@@ -66,12 +67,13 @@ class GenAllPairs:
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
         self.reconstructed_out_path = self.out_path / "reconstructions"
+        self.fused_out_path = self.out_path / "fusions"
         self.updown_out_path = self.out_path / "updown"
-        self.gt_path = self.out_path / "ground_truth"
+        self.gt_out_path = self.out_path / "ground_truth"
         self.image_names = list(
             flatten(
                 pd.read_csv(
-                    ROOT_DIR / "precomputed_data" / "test_current.csv"
+                    ROOT_DIR / "precomputed_data" / "train_current.csv"
                 ).to_numpy()
             )
         )
@@ -87,7 +89,8 @@ class GenAllPairs:
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.updown_out_path.mkdir(parents=True, exist_ok=True)
-        self.gt_path.mkdir(parents=True, exist_ok=True)
+        self.gt_out_path.mkdir(parents=True, exist_ok=True)
+        self.fused_out_path.mkdir(parents=True, exist_ok=True)
 
         if store_path:
             self.store_path = store_path
@@ -103,6 +106,10 @@ class GenAllPairs:
                 self.store_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.single_threaded = single_threaded
+
+        self._ff: Callable[
+            [List[np.ndarray]], np.ndarray
+        ] = cv.createMergeMertens().process
 
     def __call__(self):
         if self.single_threaded:
@@ -201,37 +208,50 @@ class GenAllPairs:
                 yield image
                 cv.imwrite(str(self.exp_out_path / f"{image_name}[{ev}].png"), image)
 
-    def get_ground_truth(self, image_name):
-        gt_fp = self.gt_path / f"{image_name}.png"
-        if gt_fp.exists():
-            gt_img = cv.imread(str(gt_fp))
-        else:
-            image_inputs = self.get_exposures(image_name, self.exposures)
-            gt_img = fuse(image_inputs)
-            cv.imwrite(str(gt_fp), gt_img)
-        return gt_img
+    def get_ground_truth(self, name):
+        return self.get_fused(
+            name,
+            ev_list=self.exposures,
+            out_path=self.gt_out_path,
+            out_name=f"{name}.png",
+        )
 
     def get_updown(self, name, ev):
-        updown_path = self.updown_out_path / f"{name}_ev[{ev}].png"
-        if updown_path.exists():
-            updown_img = cv.imread(str(updown_path))
-        else:
-            images = self.get_exposures(name, [-ev, 0, ev])
-            updown_img = fuse(images)
-            cv.imwrite(str(updown_path), updown_img)
-        return updown_img
+        return self.get_fused(name, ev_list=[-ev, 0, ev], out_path=self.updown_out_path)
 
     def get_reconstruction(self, name, ev1, ev2):
-        rec_path = self.reconstructed_out_path / f"{name}[{ev1}][{ev2}].png"
-        if rec_path.exists():
-            rec_img = cv.imread(str(rec_path))
+        return self.get_fused(
+            name, ev_list=[ev1, ev2], out_path=self.reconstructed_out_path
+        )
+
+    def get_fused(
+        self,
+        name: str,
+        ev_list: List[float],
+        out_path: Path = None,
+        out_name: str = None,
+    ) -> np.ndarray:
+        ev_list = sorted(ev_list)
+        if out_path is None:
+            out_path = self.fused_out_path
+        if out_name is None:
+            ev_in_name = reduce(op.add, [f"[{ev}]" for ev in ev_list])
+            out_name = f"{name}{ev_in_name}.png"
+
+        # print(f"{name=}")
+        # print(f"{ev_list=}")
+        # print(f"{out_path=}")
+        # print(f"{out_name=}")
+        fused_path = out_path / out_name
+        if fused_path.exists():
+            fused_im = cv.imread(str(fused_path))
         else:
-            print("GENERATING RECONSTRUCTION FROM SCRATCH!!")
-            print(f"{ev1=}, {ev2=}")
-            im1, im2 = self.get_exposures(name, [ev1, ev2])
-            rec_img = fuse([im1, im2])
-            cv.imwrite(str(rec_path), rec_img)
-        return rec_img
+            images = self.get_exposures(name, ev_list)
+            fused_im = self._ff([im.astype("float32") for im in images])
+            fused_im = np.clip(fused_im * 255, 0, 255).astype("uint8")
+
+            cv.imwrite(str(fused_path), fused_im)
+        return fused_im
 
 
 def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
@@ -298,19 +318,10 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
-_ff: Callable[[List[np.ndarray]], np.ndarray] = cv.createMergeMertens().process
-
-
-def fuse(images: List[np.ndarray]) -> np.ndarray:
-    merged = _ff(images)
-    merged = np.clip(merged * 255, 0, 255, dtype=uint8)
-    return merged
-
-
-def PerceptualMetric(model_name: str = "net-lin", net: str = "alex") -> Callable:
-    model: nn.Module = LPIPS(
-        model=model_name, net=net, use_gpu=torch.cuda.is_available(), gpu_ids=[0]
-    )
+def PerceptualMetric(net: str = "alex") -> Callable:
+    model: nn.Module = LPIPS(net=net)
+    if torch.cuda.is_available():
+        model = model.to("cuda:0")
 
     def perceptual_loss_metric(ima: torch.Tensor, imb: torch.Tensor) -> torch.Tensor:
         ima_t, imb_t = map(im2tensor, [ima, imb])
