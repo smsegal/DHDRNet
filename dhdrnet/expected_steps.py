@@ -32,7 +32,8 @@ def num_exposures_needed(runs, metrics=default_metrics):
         out_path=DATA_DIR / "correct_exposures",
         compute_scores=False,
     )
-    exposures = list(data_gen.exposures)
+    exp = data_gen.exposures
+    exposures = list(flatten((exp[exp < 0], exp[exp > 0])))
     all_image_names = data_gen.image_names
 
     df = pd.DataFrame(columns=metrics.keys())
@@ -44,27 +45,9 @@ def num_exposures_needed(runs, metrics=default_metrics):
     err_list = flatten(
         thread_map(
             stats_fun,
-            all_image_names,
+            sample(all_image_names, k=runs),
         )
     )
-
-    # for name in all_image_names[:runs]:
-    #     ground_truth = data_gen.get_ground_truth(name)
-    #     exp_groups = zip(
-    #         (select_exposures(exposures, n) for n in exposure_steps), exposure_steps
-    #     )
-    #     for exp_group, n in exp_groups:
-    #         fused = data_gen.get_fused(name, exp_group)
-    #         for metric_name, metric_func in metrics.items():
-    #             error = metric_func(ground_truth, fused)
-    #             err_list.append(
-    #                 {
-    #                     "image_name": name,
-    #                     "metric": metric_name,
-    #                     "num_exposures": n,
-    #                     "error": error,
-    #                 }
-    #             )
 
     df = pd.DataFrame.from_records(err_list, index="image_name")
     return df

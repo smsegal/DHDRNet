@@ -5,7 +5,6 @@ import torch
 from more_itertools.more import one
 from more_itertools.recipes import flatten
 from PIL import Image
-from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -73,7 +72,9 @@ class LUTDataset(Dataset):
 class RCDataset(LUTDataset):
     def __getitem__(self, index):
         mid_exp, _label, name = super().__getitem__(index)
-        mse = torch.tensor(self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float)
+        mse = torch.tensor(
+            self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float
+        )
         max, _ = mse.max(dim=0, keepdim=True)
 
         mse_inv = max - mse
