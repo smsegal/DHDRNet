@@ -264,5 +264,7 @@ for name, data in df.iterrows():
 
 mean_err = np.mean([x[1] for x in rand_sel.values()])
 mean_err
+# %% [markdown]
+# Need to look at stepwise gains in reconstruction errors and find the expected number needed for a reasonable reproduction
 
 # %%
