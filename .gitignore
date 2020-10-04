@@ -378,3 +378,5 @@ data
 checkpoints/*
 */notebooks/lightning_logs
 flycheck*
+
+.ob-jupyter

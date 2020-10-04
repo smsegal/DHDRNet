@@ -261,8 +261,8 @@ rand_sel = dict()
 for name, data in df.iterrows():
     ev = rand.choice(df["mse"].columns)
     rand_sel[name] = (ev, data["mse"][ev])
-    
 
 mean_err = np.mean([x[1] for x in rand_sel.values()])
 mean_err
-# %% 
+
+# %%

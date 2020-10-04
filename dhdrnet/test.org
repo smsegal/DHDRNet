@@ -1,5 +1,6 @@
 #+TITLE: Test Tables and such
-#+PROPERTY: header-args :async yes :session /jpy::84289601f8c10c7ce585a4e69bf5ab7353f755f149807129
+#+PROPERTY: header-args :async yes :session py
+# /jpy::84289601f8c10c7ce585a4e69bf5ab7353f755f149807129
 
 * Testing Converting the Errors to Probabilities
 #+BEGIN_SRC jupyter-python

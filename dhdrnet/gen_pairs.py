@@ -15,8 +15,10 @@ import torch
 from more_itertools import flatten
 from more_itertools.more import distinct_combinations
 from pandas.core.frame import DataFrame
-from perceptual_similarity import PerceptualLoss
-from perceptual_similarity.util.util import im2tensor
+from lpips import LPIPS, im2tensor
+
+# from perceptual_similarity import PerceptualLoss
+# from perceptual_similarity.util.util import im2tensor
 from skimage.metrics import mean_squared_error, structural_similarity
 from torch import nn
 from tqdm import tqdm
@@ -259,7 +261,7 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
                 :, :, channel_swapper
             ]
 
-            #uhh I think this might be swapping w/h
+            # uhh I think this might be swapping w/h
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))[::-1]
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -306,7 +308,7 @@ def fuse(images: List[np.ndarray]) -> np.ndarray:
 
 
 def PerceptualMetric(model_name: str = "net-lin", net: str = "alex") -> Callable:
-    model: nn.Module = PerceptualLoss(
+    model: nn.Module = LPIPS(
         model=model_name, net=net, use_gpu=torch.cuda.is_available(), gpu_ids=[0]
     )
 
