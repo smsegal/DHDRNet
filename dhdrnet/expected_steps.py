@@ -1,16 +1,14 @@
-from collections import defaultdict
-from more_itertools import flatten
 from functools import partial
 from random import sample
-from tqdm.contrib.concurrent import thread_map
-
 
 import pandas as pd
+from more_itertools import flatten
 from skimage.metrics import (
     mean_squared_error,
     peak_signal_noise_ratio,
     structural_similarity,
 )
+from tqdm.contrib.concurrent import thread_map
 
 from dhdrnet.gen_pairs import GenAllPairs
 from dhdrnet.util import DATA_DIR
