@@ -2,7 +2,7 @@ import argparse
 import operator as op
 from collections import defaultdict
 from functools import partial, reduce
-from itertools import product
+from itertools import product, repeat
 from pathlib import Path
 from typing import Callable, Collection, List, Optional
 
@@ -17,7 +17,7 @@ from more_itertools import flatten
 from more_itertools.more import distinct_combinations
 from pandas.core.frame import DataFrame
 from skimage.metrics import (
-    mean_squared_error,
+    normalized_root_mse,
     peak_signal_noise_ratio,
     structural_similarity,
 )
@@ -80,9 +80,10 @@ class GenAllPairs:
 
         if compute_scores:
             self.metricfuncs = {
-                "mse": mean_squared_error,
+                "rmse": normalized_root_mse,
+                "psnr": peak_signal_noise_ratio,
                 "ssim": partial(structural_similarity, multichannel=True),
-                "perceptual": PerceptualMetric(),
+                # "perceptual": PerceptualMetric(),
             }
             self.metrics = list(self.metricfuncs.keys())
 
@@ -151,7 +152,11 @@ class GenAllPairs:
 
     def compute_stats(self, img_name):
         stats = defaultdict(list)
-        ev_combinations = distinct_combinations(self.exposures, r=2)
+        # ev_combinations = distinct_combinations(self.exposures, r=2)
+        ev_combinations = zip(
+            repeat(0.0),
+            [*self.exposures[self.exposures < 0], *self.exposures[self.exposures > 0]],
+        )
 
         options_df = pd.DataFrame.from_records(
             product([img_name], ev_combinations, self.metrics),
@@ -211,7 +216,7 @@ class GenAllPairs:
     def get_ground_truth(self, name):
         return self.get_fused(
             name,
-            ev_list=self.exposures,
+            ev_list=np.arange(-5.0, 6.0),
             out_path=self.gt_out_path,
             out_name=f"{name}.png",
         )
@@ -238,10 +243,6 @@ class GenAllPairs:
             ev_in_name = reduce(op.add, [f"[{ev}]" for ev in ev_list])
             out_name = f"{name}{ev_in_name}.png"
 
-        # print(f"{name=}")
-        # print(f"{ev_list=}")
-        # print(f"{out_path=}")
-        # print(f"{out_name=}")
         fused_path = out_path / out_name
         if fused_path.exists():
             fused_im = cv.imread(str(fused_path))

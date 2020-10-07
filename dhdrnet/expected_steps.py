@@ -34,9 +34,6 @@ def num_exposures_needed(runs, metrics=default_metrics):
     exposures = list(flatten((exp[exp < 0], exp[exp > 0])))
     all_image_names = data_gen.image_names
 
-    df = pd.DataFrame(columns=metrics.keys())
-
-    # sample(all_image_names, k=runs):
     stats_fun = partial(
         compute_stats, data_gen=data_gen, exposures=exposures, metrics=metrics
     )
