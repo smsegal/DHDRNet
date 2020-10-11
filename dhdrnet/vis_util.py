@@ -1,9 +1,12 @@
+from itertools import repeat
+
 import matplotlib.pyplot as plt
 import numpy as np
 from more_itertools import flatten
-from itertools import repeat
 from mpl_toolkits.axes_grid1 import ImageGrid
 from PIL import Image
+from skimage import img_as_float
+from skimage.color import label2rgb
 
 from dhdrnet import image_loader
 
@@ -11,7 +14,7 @@ from .util import DATA_DIR
 
 
 def rgb_bgr_swap(image: np.ndarray) -> np.ndarray:
-    return image[:, :, [2, 1, 0]]
+    return image[..., [2, 1, 0]]
 
 
 def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
@@ -129,3 +132,24 @@ def show_predictions(predictions, model_name, image_names, ev_options):
             title=f"{img_name} {model_name} (Ground Truth + Reconstructed)",
             labels=["Ground Truth", "Reconstructed"],
         )
+
+
+def recolour_image(image, weight_maps, colours):
+    image = img_as_float(image, force_copy=True)
+
+    # take top n% of brightest pixels from each weight map
+    # and colour the portion of the final image at those
+    # locations with the specified colour
+
+    colour_labels = np.zeros(image.shape[:2])
+    weight_maps = np.array(weight_maps)
+    for i, wm in enumerate(weight_maps):
+        maxes = np.amax(weight_maps, axis=0)
+        colour_labels[wm == maxes] = i + 1
+
+    coloured_image = label2rgb(
+        colour_labels,
+        image=image,
+        colors=["orange", "purple", "green", "blue", "red"],
+    )
+    return colour_labels, coloured_image
