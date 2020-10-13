@@ -15,8 +15,11 @@ import torch
 from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (normalized_root_mse, peak_signal_noise_ratio,
-                             structural_similarity)
+from skimage.metrics import (
+    normalized_root_mse,
+    peak_signal_noise_ratio,
+    structural_similarity,
+)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
@@ -316,14 +319,19 @@ def nested_dict_merge(d1, d2):
 
 
 def PerceptualMetric(net: str = "alex") -> Callable:
-    model: nn.Module = LPIPS(net=net)
-    if torch.cuda.is_available():
-        model = model.to("cuda:0")
+    model: nn.Module = LPIPS(net=net, spatial=False)
+    usegpu = torch.cuda.is_available()
+    if usegpu:
+        model = model.cuda()
 
     def perceptual_loss_metric(ima: torch.Tensor, imb: torch.Tensor) -> torch.Tensor:
         ima_t, imb_t = map(im2tensor, [ima, imb])
-        d = model.forward(ima_t, imb_t).detach().cpu().numpy().flatten()[0]
-        return d
+        if usegpu:
+            ima_t = ima_t.cuda()
+            imb_t = imb_t.cuda()
+
+        dist = model.forward(ima_t, imb_t).data.cpu().numpy()
+        return dist
 
     return perceptual_loss_metric
 
