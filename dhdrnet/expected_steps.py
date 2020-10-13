@@ -4,7 +4,7 @@ from random import sample
 import pandas as pd
 from more_itertools import flatten
 from skimage.metrics import (
-    mean_squared_error,
+    normalized_root_mse,
     peak_signal_noise_ratio,
     structural_similarity,
 )
@@ -15,7 +15,7 @@ from dhdrnet.util import DATA_DIR
 
 default_metrics = {
     "psnr": peak_signal_noise_ratio,
-    "mse": mean_squared_error,
+    "rmse": normalized_root_mse,
     "sssim": partial(structural_similarity, multichannel=True),
 }
 
