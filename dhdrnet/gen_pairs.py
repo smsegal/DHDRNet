@@ -15,11 +15,8 @@ import torch
 from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (
-    normalized_root_mse,
-    peak_signal_noise_ratio,
-    structural_similarity,
-)
+from skimage.metrics import (normalized_root_mse, peak_signal_noise_ratio,
+                             structural_similarity)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
@@ -186,7 +183,7 @@ class GenAllPairs:
                 self.metricfuncs[metric](ground_truth, reconstruction)
             )
 
-        if len(remaining):
+        if len(remaining) == 0:
             df = pd.DataFrame.from_dict(stats)
             if self.store_path.exists():
                 header = None
@@ -304,7 +301,7 @@ def nested_dict_merge(d1, d2):
     merged = dict()
 
     # base case, have lists as leaves
-    if type(d1) == list:
+    if isinstance(d1, list):
         return d1 + d2
 
     combined_keys = set(reduce(op.add, (list(d.keys()) for d in (d1, d2))))
