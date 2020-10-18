@@ -13,15 +13,17 @@ import pandas as pd
 import rawpy
 import torch
 from lpips import LPIPS, im2tensor
-from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (normalized_root_mse, peak_signal_noise_ratio,
-                             structural_similarity)
+from skimage.metrics import (
+    normalized_root_mse,
+    peak_signal_noise_ratio,
+    structural_similarity,
+)
 from torch import nn
 from tqdm import tqdm
-from tqdm.contrib.concurrent import thread_map
+from tqdm.contrib.concurrent import thread_map, process_map
 
-from dhdrnet.util import ROOT_DIR
+from dhdrnet.util import DATA_DIR
 
 
 def main(args):
@@ -66,13 +68,7 @@ class GenAllPairs:
         self.fused_out_path = self.out_path / "fusions"
         self.updown_out_path = self.out_path / "updown"
         self.gt_out_path = self.out_path / "ground_truth"
-        self.image_names = list(
-            flatten(
-                pd.read_csv(
-                    ROOT_DIR / "precomputed_data" / "train_current.csv"
-                ).to_numpy()
-            )
-        )
+        self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
 
         if compute_scores:
             self.metricfuncs = {
@@ -327,6 +323,7 @@ def PerceptualMetric(net: str = "alex") -> Callable:
             ima_t = ima_t.cuda()
             imb_t = imb_t.cuda()
 
+        # TODO: This is returning items of shape (1,1,1,1) soo thats annoying
         dist = model.forward(ima_t, imb_t).data.cpu().numpy()
         return dist
 
