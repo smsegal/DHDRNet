@@ -13,15 +13,13 @@ import pandas as pd
 import rawpy
 import torch
 from lpips import LPIPS, im2tensor
+from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (
-    normalized_root_mse,
-    peak_signal_noise_ratio,
-    structural_similarity,
-)
+from skimage.metrics import (normalized_root_mse, peak_signal_noise_ratio,
+                             structural_similarity)
 from torch import nn
 from tqdm import tqdm
-from tqdm.contrib.concurrent import thread_map, process_map
+from tqdm.contrib.concurrent import thread_map
 
 from dhdrnet.util import DATA_DIR
 
@@ -35,6 +33,7 @@ def main(args):
         exp_min=args.exp_min,
         exp_step=args.exp_step,
         single_threaded=args.single_thread,
+        image_names=args.image_names,
     )
     if args.updown:
         print("Computing UpDown Strategy")
@@ -57,6 +56,7 @@ class GenAllPairs:
         exp_max: float = 6,
         exp_step: float = 0.25,
         single_threaded: bool = False,
+        image_names=None,
     ):
         self.exposures: np.ndarray = np.linspace(
             exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
@@ -68,7 +68,11 @@ class GenAllPairs:
         self.fused_out_path = self.out_path / "fusions"
         self.updown_out_path = self.out_path / "updown"
         self.gt_out_path = self.out_path / "ground_truth"
-        self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
+
+        if image_names is None:
+            self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
+        else:
+            self.image_names = flatten(pd.read_csv(image_names).to_numpy())
 
         if compute_scores:
             self.metricfuncs = {
@@ -312,6 +316,8 @@ def nested_dict_merge(d1, d2):
 
 
 def PerceptualMetric(net: str = "alex") -> Callable:
+    from more_itertools import collapse, one
+
     model: nn.Module = LPIPS(net=net, spatial=False)
     usegpu = torch.cuda.is_available()
     if usegpu:
@@ -324,7 +330,7 @@ def PerceptualMetric(net: str = "alex") -> Callable:
             imb_t = imb_t.cuda()
 
         # TODO: This is returning items of shape (1,1,1,1) soo thats annoying
-        dist = model.forward(ima_t, imb_t).data.cpu().numpy()
+        dist = one(collapse(model.forward(ima_t, imb_t).data.cpu().numpy()))
         return dist
 
     return perceptual_loss_metric
@@ -340,6 +346,9 @@ if __name__ == "__main__":
         help="file to store data in (created if does not exist)",
         default="store",
     )
+
+    parser.add_argument("--image-names", default=None)
+
     parser.add_argument("--exp-min", default=-3)
     parser.add_argument("--exp-max", default=6)
     parser.add_argument("--exp-step", default=0.25)
