@@ -15,8 +15,11 @@ import torch
 from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (normalized_root_mse, peak_signal_noise_ratio,
-                             structural_similarity)
+from skimage.metrics import (
+    normalized_root_mse,
+    peak_signal_noise_ratio,
+    structural_similarity,
+)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
@@ -42,7 +45,8 @@ def main(args):
         print(
             f"Computing Images from EV {args.exp_min} to {args.exp_max} with stepsize of {args.exp_step}"
         )
-        generator()
+        data = generator()
+        data.to_csv(args.store_path)
 
 
 class GenAllPairs:
@@ -72,7 +76,7 @@ class GenAllPairs:
         if image_names is None:
             self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
         else:
-            self.image_names = flatten(pd.read_csv(image_names).to_numpy())
+            self.image_names = list(flatten(pd.read_csv(image_names).to_numpy()))
 
         if compute_scores:
             self.metricfuncs = {
@@ -102,7 +106,11 @@ class GenAllPairs:
                 )
                 self.store_path.parent.mkdir(parents=True, exist_ok=True)
 
+            self.store.to_csv(self.store_path, index=False)
+
         self.single_threaded = single_threaded
+
+        self.written_store = False
 
         self._ff: Callable[
             [List[np.ndarray]], np.ndarray
@@ -110,10 +118,13 @@ class GenAllPairs:
 
     def __call__(self):
         if self.single_threaded:
-            self.stats_dispatch()
+            stats = self.stats_dispatch()
         else:
-            self.stats_dispatch_parallel()
+            stats = self.stats_dispatch_parallel()
+
+        stats_df = pd.DataFrame.from_dict(stats)
         print(f"computed all stats, saved in {self.store}")
+        return stats_df
 
     def stats_dispatch(self):
         stats = dict()
@@ -148,49 +159,25 @@ class GenAllPairs:
 
     def compute_stats(self, img_name):
         stats = defaultdict(list)
-        # ev_combinations = distinct_combinations(self.exposures, r=2)
-        ev_combinations = zip(
-            repeat(0.0),
-            [*self.exposures[self.exposures < 0], *self.exposures[self.exposures > 0]],
-        )
+        ev_options = [
+            *self.exposures[self.exposures < 0],
+            *self.exposures[self.exposures > 0],
+        ]
 
-        options_df = pd.DataFrame.from_records(
-            product([img_name], ev_combinations, self.metrics),
-            columns=["name", "ev", "metric"],
-        )
-        options_df["ev1"] = options_df["ev"].apply(lambda d: d[0])
-        options_df["ev2"] = options_df["ev"].apply(lambda d: d[1])
-        im_stats: pd.Series = self.store[self.store["name"] == img_name]
-
-        remaining: pd.DataFrame = (
-            pd.concat([im_stats, options_df])
-            .drop_duplicates(keep=False, subset=["name", "ev1", "ev2", "metric"])
-            .drop(columns=["ev", "score"])
-        )
-
-        for row in remaining.itertuples(index=False):
-            name = row.name
-            ev1 = row.ev1
-            ev2 = row.ev2
-            metric = row.metric
-            ground_truth = self.get_ground_truth(name)
-            reconstruction = self.get_reconstruction(name, ev1, ev2)
+        options = product(ev_options, self.metrics)
+        for ev, metric in options:
+            ground_truth = self.get_ground_truth(img_name)
+            reconstruction = self.get_reconstruction(img_name, 0.0, ev)
             stats["name"].append(img_name)
             stats["metric"].append(metric)
-            stats["ev1"].append(ev1)
-            stats["ev2"].append(ev2)
+            stats["ev1"].append(0.0)
+            stats["ev2"].append(ev)
             stats["score"].append(
                 self.metricfuncs[metric](ground_truth, reconstruction)
             )
 
-        if len(remaining) == 0:
-            df = pd.DataFrame.from_dict(stats)
-            if self.store_path.exists():
-                header = None
-            else:
-                header = df.columns
-
-            df.to_csv(self.store_path, mode="a", header=header)
+        df = pd.DataFrame.from_dict(stats)
+        df.to_csv(self.store_path, mode="a", header=None, index=False)
         return stats
 
     def get_exposures(self, image_name, exposures):
@@ -329,7 +316,6 @@ def PerceptualMetric(net: str = "alex") -> Callable:
             ima_t = ima_t.cuda()
             imb_t = imb_t.cuda()
 
-        # TODO: This is returning items of shape (1,1,1,1) soo thats annoying
         dist = one(collapse(model.forward(ima_t, imb_t).data.cpu().numpy()))
         return dist
 

@@ -19,7 +19,7 @@ class LUTDataset(Dataset):
         raw_dir: Path,
         name_list: Path,
         transform=transforms.ToTensor(),
-        metric="rmse",
+        metric="mse",
     ):
         self.exposure_path = exposure_path
         self.transform = transform
