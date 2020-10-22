@@ -1,5 +1,6 @@
 from itertools import repeat
 
+
 import matplotlib.pyplot as plt
 import numpy as np
 from more_itertools import flatten
@@ -10,7 +11,7 @@ from skimage.color import label2rgb
 
 from dhdrnet import image_loader
 
-from .util import DATA_DIR
+from dhdrnet.util import DATA_DIR
 
 
 def rgb_bgr_swap(image: np.ndarray) -> np.ndarray:
@@ -150,6 +151,14 @@ def recolour_image(image, weight_maps, colours):
     coloured_image = label2rgb(
         colour_labels,
         image=image,
-        colors=["orange", "purple", "green", "blue", "red"],
+        colors=["yellow", "purple", "green", "blue", "red"],
     )
     return colour_labels, coloured_image
+
+
+def binarize_weights(wm):
+    wm_float = wm.copy()
+    mid = wm_float.mean()
+    wm_float[wm_float < mid] = 0.0
+    wm_float[wm_float >= mid] = 1.0
+    return wm_float
