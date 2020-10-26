@@ -33,15 +33,15 @@ class RCNet(DHDRNet):
         self.feature_extractor = models.mobilenet_v2(
             pretrained=False, num_classes=self.num_classes
         )
-        # self.feature_extractor.classifier = nn.Sequential(
-        #     nn.Dropout(0.5),
-        #     nn.Linear(
-        #         self.feature_extractor.last_channel,
-        #         self.feature_extractor.last_channel // 2,
-        #     ),
-        #     nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
-        #     nn.Linear(self.feature_extractor.last_channel // 2, self.num_classes),
-        # )
+        self.feature_extractor.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(
+                self.feature_extractor.last_channel,
+                self.feature_extractor.last_channel // 2,
+            ),
+            nn.BatchNorm1d(self.feature_extractor.last_channel // 2),
+            nn.Linear(self.feature_extractor.last_channel // 2, self.num_classes),
+        )
         self.criterion = nn.MSELoss()
 
         # duplicated code grosssss

@@ -80,7 +80,7 @@ class GenAllPairs:
 
         if compute_scores:
             self.metricfuncs = {
-                "rmse": mean_squared_error,
+                "rmse": rmse,
                 "psnr": peak_signal_noise_ratio,
                 "ssim": partial(structural_similarity, multichannel=True),
                 # "perceptual": PerceptualMetric(),
