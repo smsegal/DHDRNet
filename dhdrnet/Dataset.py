@@ -7,6 +7,8 @@ from more_itertools.recipes import flatten
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+import numpy as np
+from deprecated import deprecated
 
 from dhdrnet.gen_pairs import GenAllPairs
 
@@ -25,21 +27,26 @@ class LUTDataset(Dataset):
         self.transform = transform
 
         names = flatten(pd.read_csv(name_list).to_numpy())
-        df = df.set_index("name")
+        # df = df.set_index("name")
 
-        # ev 0
-        baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
-        baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
-            lambda evs: [e for e in evs if e != 0][0], axis=1
-        )
-        baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
+        # # ev 0
+        # baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
+        # baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
+        #     lambda evs: [e for e in evs if e != 0][0], axis=1
+        # )
+        # baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
 
-        by_ev = baseline_df.pivot_table(
-            index="name", columns=["metric", "ev"], values="score"
-        )
+        by_ev = df.pivot_table(index="name", columns=["metric", "ev"], values="score")
         by_ev = by_ev.loc[by_ev.index.intersection(names)]
 
-        self.evs = sorted(baseline_df["ev"].unique())
+        exp_min = -3
+        exp_max = 6
+        exp_step = 0.25
+        evs: np.ndarray = np.linspace(
+            exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
+        )
+        self.evs = np.array([*evs[evs < 0], *evs[evs > 0]])
+
         self.ev_indices = {ev: i for (i, ev) in enumerate(self.evs)}
 
         self.opt_choices = by_ev[metric].idxmin(axis=1)
@@ -71,25 +78,16 @@ class LUTDataset(Dataset):
 
 class RCDataset(LUTDataset):
     def __getitem__(self, index):
-        mid_exp, _label, name = super().__getitem__(index)
-        mse = torch.tensor(
-            self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float
-        )
-        max, _ = mse.max(dim=0, keepdim=True)
-
-        mse_inv = max - mse
-        mse_inv_prob = mse_inv / mse_inv.sum(dim=0, keepdim=True)
-
-        return mid_exp, mse_inv_prob, name
-
-
-class RCDataset2(LUTDataset):
-    def __getitem__(self, index):
-        mid_exp, _label, name = super().__getitem__(index)
-        mse = torch.tensor(
-            self.data.iloc[index][self.metric].to_numpy(), dtype=torch.float
-        )
-        return mid_exp, mse, name
+        mid_exp, label, name = super().__getitem__(index)
+        gt_image = self.generator.get_ground_truth(name)
+        gt_image = Image.fromarray(gt_image[..., [2, 1, 0]])
+        gt_image = self.transform(gt_image)
+        # fused_images  (
+        #     self.generator.get_reconstruction(name, 0.0, ev) for ev in self.evs
+        # )
+        # fused_images = (Image.fromarray(fi) for fi in fused_images)
+        # fused_images = torch.stack([self.transform(fi) for fi in fused_images])
+        return mid_exp, gt_image, name, label
 
 
 class HistogramDataset(LUTDataset):
@@ -105,6 +103,7 @@ class HistogramDataset(LUTDataset):
         return torch.histc(mid_ev_image, bins=self.bins), label_idx, stats
 
 
+@deprecated
 class HDRDataset(Dataset):
     """HDR image dataset"""
 

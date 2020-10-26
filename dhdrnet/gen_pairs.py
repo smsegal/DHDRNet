@@ -5,7 +5,7 @@ from functools import partial, reduce
 from itertools import product, repeat
 from pathlib import Path
 from typing import Callable, Collection, List, Optional
-
+import sys
 import cv2 as cv
 import exifread
 import numpy as np
@@ -16,9 +16,9 @@ from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
 from skimage.metrics import (
-    normalized_root_mse,
     peak_signal_noise_ratio,
     structural_similarity,
+    mean_squared_error
 )
 from torch import nn
 from tqdm import tqdm
@@ -68,7 +68,7 @@ class GenAllPairs:
         self.raw_path = raw_path
         self.out_path = out_path
         self.exp_out_path = self.out_path / "exposures"
-        self.reconstructed_out_path = self.out_path / "reconstructions"
+        self.reconstructed_out_path = self.out_path / "fusions"
         self.fused_out_path = self.out_path / "fusions"
         self.updown_out_path = self.out_path / "updown"
         self.gt_out_path = self.out_path / "ground_truth"
@@ -80,10 +80,10 @@ class GenAllPairs:
 
         if compute_scores:
             self.metricfuncs = {
-                "rmse": normalized_root_mse,
+                "rmse": mean_squared_error,
                 "psnr": peak_signal_noise_ratio,
                 "ssim": partial(structural_similarity, multichannel=True),
-                "perceptual": PerceptualMetric(),
+                # "perceptual": PerceptualMetric(),
             }
             self.metrics = list(self.metricfuncs.keys())
 
@@ -199,7 +199,7 @@ class GenAllPairs:
     def get_ground_truth(self, name):
         return self.get_fused(
             name,
-            ev_list=np.arange(-5.0, 6.0),
+            ev_list=[-4.0, -2.0, 0.0, 2.0, 4.0],
             out_path=self.gt_out_path,
             out_name=f"{name}.png",
         )
@@ -229,13 +229,19 @@ class GenAllPairs:
         fused_path = out_path / out_name
         if fused_path.exists():
             fused_im = cv.imread(str(fused_path))
+            # print(f"reading fused file: {fused_path}")
         else:
+            # print(f"generating fused file: {fused_path}", sys.stderr)
             images = self.get_exposures(name, ev_list)
             fused_im = self._ff([im.astype("float32") for im in images])
             fused_im = np.clip(fused_im * 255, 0, 255).astype("uint8")
 
             cv.imwrite(str(fused_path), fused_im)
         return fused_im
+
+
+def rmse(a, b):
+    return np.sqrt(mean_squared_error(a, b))
 
 
 def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):

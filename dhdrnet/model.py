@@ -34,6 +34,14 @@ class DHDRNet(LightningModule):
         self.batch_size = batch_size
         self.Dataset = LUTDataset
         self.save_hyperparameters()
+        self.transform = Compose(
+            [
+                Resize((300, 300)),
+                # RandomHorizontalFlip(p=0.5),
+                # RandomVerticalFlip(p=0.5),
+                ToTensor(),
+            ]
+        )
 
     def print_summary(self, model, size):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,14 +50,6 @@ class DHDRNet(LightningModule):
         del model
 
     def prepare_data(self):
-        transform = Compose(
-            [
-                Resize((300, 300)),
-                RandomHorizontalFlip(p=0.5),
-                RandomVerticalFlip(p=0.5),
-                ToTensor(),
-            ]
-        )
 
         data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
         trainval_data = self.Dataset(
@@ -57,15 +57,14 @@ class DHDRNet(LightningModule):
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",
             name_list=ROOT_DIR / "precomputed_data" / "train_current.csv",
-            transform=transform,
+            transform=self.transform,
         )
-
         test_data = self.Dataset(
             df=data_df,
             exposure_path=DATA_DIR / "correct_exposures" / "exposures",
             raw_dir=DATA_DIR / "dngs",
             name_list=ROOT_DIR / "precomputed_data" / "test_current.csv",
-            transform=transform,
+            transform=self.transform,
         )
         train_val_ratio = 0.9
         train_len = ceil(train_val_ratio * len(trainval_data))
@@ -74,6 +73,7 @@ class DHDRNet(LightningModule):
         self.train_data = train_data
         self.val_data = val_data
         self.test_data = test_data
+        self.generator = trainval_data.generator
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
@@ -117,7 +117,8 @@ class DHDRNet(LightningModule):
         return {"val_loss": loss, "log": logs}
 
     def validation_epoch_end(
-        self, outputs: List[Dict[str, Tensor]],
+        self,
+        outputs: List[Dict[str, Tensor]],
     ) -> Dict[str, Union[Dict, Tensor]]:
         avg_loss: Tensor = torch.stack([x["val_loss"] for x in outputs]).mean()
         tensorboard_logs: Dict[str, Tensor] = {"val_loss": avg_loss}

@@ -28,8 +28,6 @@ def main(hparams=None):
         Model = resnet_model.DHDRResnet
     elif hparams.backbone == "reconstruction":
         Model = reconstruction_model.RCNet
-    elif hparams.backbone == "reconstruction2":
-        Model = reconstruction_model.RCNet2
 
     checkpoint_path = hparams.checkpoint_path
     model = Model(
@@ -88,7 +86,6 @@ if __name__ == "__main__":
             "hist",
             "resnet",
             "reconstruction",
-            "reconstruction2",
         ],
     )
     parser.add_argument("--test-only", action="store_true")
@@ -99,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--auto-batch", action="store_true")
     parser.add_argument("--batch-size", default=24)
     parser.add_argument("--auto-lr", action="store_true")
-    parser.add_argument("--learning-rate", "-l", default=1e-3)
+    parser.add_argument("--learning-rate", "-l", default=1e-7)
     args = parser.parse_args()
     print(args)
     main(args)
