@@ -1,23 +1,26 @@
-from itertools import repeat
+from itertools import islice, product, repeat
+from pprint import pprint
 
-
+import matplotlib as mpl
+import matplotlib.colors as mc
 import matplotlib.pyplot as plt
 import numpy as np
-from more_itertools import flatten
+from more_itertools import collapse, flatten
 from mpl_toolkits.axes_grid1 import ImageGrid
 from PIL import Image
 from skimage import img_as_float
-from skimage.color import label2rgb
+from skimage.color import gray2rgb, label2rgb
 
 from dhdrnet import image_loader
-
 from dhdrnet.util import DATA_DIR
 
 
+# %%
 def rgb_bgr_swap(image: np.ndarray) -> np.ndarray:
     return image[..., [2, 1, 0]]
 
 
+# %%
 def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
     fig = plt.figure(figsize=(12, 8))
     grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
@@ -66,6 +69,9 @@ def view_data_sample(dataset, idx=None):
     )
     for ax, im in zip(exp_grid, sample["exposures"]):
         ax.imshow(im)
+
+
+#%%
 
 
 def get_pred_dist(stats_df, categories, type, save_plots=False):
@@ -135,25 +141,40 @@ def show_predictions(predictions, model_name, image_names, ev_options):
         )
 
 
-def recolour_image(image, weight_maps, colours):
-    image = img_as_float(image, force_copy=True)
+def recolour_image(weight_maps, colours):
+    # weight maps are grayscale
 
-    # take top n% of brightest pixels from each weight map
-    # and colour the portion of the final image at those
-    # locations with the specified colour
+    colour_mapping = mc.get_named_colors_mapping()
+    colour_vals = np.array([mc.to_rgb(colour_mapping[cname]) for cname in colours])
 
-    colour_labels = np.zeros(image.shape[:2])
-    weight_maps = np.array(weight_maps)
-    for i, wm in enumerate(weight_maps):
-        maxes = np.amax(weight_maps, axis=0)
-        colour_labels[wm == maxes] = i + 1
+    pprint(colour_vals)
 
-    coloured_image = label2rgb(
-        colour_labels,
-        image=image,
-        colors=["yellow", "purple", "green", "blue", "red"],
+    bwms = (binarize_weights(wm) for wm in weight_maps)
+
+    # ensuring that the 0 values are translated to white we want to
+    # add 1 to each (0,0,0) of the binarized wm so instead of figuring
+    # out whatever weird broadcasting method might exist or looping
+    # over slowly, just -1 from the colours we are weighting by,
+    # multiply in the shifted colours, and then add 1 to the whole image
+    coloured_wms = np.array(
+        [
+            (c[np.newaxis, np.newaxis, ...] - 1) * wm + 1
+            for c, wm in zip(colour_vals, map(gray2rgb, bwms))
+        ]
     )
-    return colour_labels, coloured_image
+
+    print(f"{coloured_wms.shape=}")
+
+    # now want to generate lookup table where each (i,j) is the wm to
+    # take the pixel value from in the final image
+    fused = np.ones_like(coloured_wms[0])  # shape: (NxMx3)
+
+    brightest = np.max(weight_maps, axis=0)
+    print(f"{brightest.shape=}")
+    for i, (wm, c) in enumerate(zip(weight_maps, colour_vals)):
+        fused[wm >= brightest] = c
+
+    return coloured_wms, fused
 
 
 def binarize_weights(wm):

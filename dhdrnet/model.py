@@ -50,7 +50,6 @@ class DHDRNet(LightningModule):
         del model
 
     def prepare_data(self):
-
         data_df = pd.read_csv(ROOT_DIR / "precomputed_data" / "store_current.csv")
         trainval_data = self.Dataset(
             df=data_df,
