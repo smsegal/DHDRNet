@@ -42,6 +42,8 @@ jupytext = "^1.6.0"
 black = {version = "^20.8b1", allow-prereleases = true}
 ipywidgets = "^7.5.1"
 jupyterlab_code_formatter = "^1.3.6"
+python-qt = "^0.50"
+PyQt5 = "^5.15.1"
 
 [build-system]
 requires = ["poetry>=0.12"]
