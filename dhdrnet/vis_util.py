@@ -1,26 +1,22 @@
-from itertools import islice, product, repeat
+from itertools import repeat
 from pprint import pprint
 
-import matplotlib as mpl
 import matplotlib.colors as mc
 import matplotlib.pyplot as plt
 import numpy as np
-from more_itertools import collapse, flatten
+from more_itertools import flatten
 from mpl_toolkits.axes_grid1 import ImageGrid
 from PIL import Image
-from skimage import img_as_float
-from skimage.color import gray2rgb, label2rgb
+from skimage.color import gray2rgb
 
 from dhdrnet import image_loader
 from dhdrnet.util import DATA_DIR
 
 
-# %%
 def rgb_bgr_swap(image: np.ndarray) -> np.ndarray:
     return image[..., [2, 1, 0]]
 
 
-# %%
 def show_image_pair(im1: np.ndarray, im2: np.ndarray, title=None, labels=None):
     fig = plt.figure(figsize=(12, 8))
     grid = ImageGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=0.1)
@@ -146,9 +142,6 @@ def recolour_image(weight_maps, colours):
 
     colour_mapping = mc.get_named_colors_mapping()
     colour_vals = np.array([mc.to_rgb(colour_mapping[cname]) for cname in colours])
-
-    pprint(colour_vals)
-
     bwms = (binarize_weights(wm) for wm in weight_maps)
 
     # ensuring that the 0 values are translated to white we want to
@@ -162,15 +155,11 @@ def recolour_image(weight_maps, colours):
             for c, wm in zip(colour_vals, map(gray2rgb, bwms))
         ]
     )
-
-    print(f"{coloured_wms.shape=}")
-
-    # now want to generate lookup table where each (i,j) is the wm to
-    # take the pixel value from in the final image
     fused = np.ones_like(coloured_wms[0])  # shape: (NxMx3)
 
+    # want the colour of the fused image to be that of largest
+    # magnitude of the original weight maps
     brightest = np.max(weight_maps, axis=0)
-    print(f"{brightest.shape=}")
     for i, (wm, c) in enumerate(zip(weight_maps, colour_vals)):
         fused[wm >= brightest] = c
 

@@ -2,7 +2,8 @@ import csv
 import os
 import random
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
+from contextlib import (ExitStack, contextmanager, redirect_stderr,
+                        redirect_stdout)
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -225,13 +226,61 @@ def best_worse_metric(dfg, metric, n, save_path=None):
                 ax.imshow(im)
                 ax.set_xlabel(f"{label}")
 
-            fig.suptitle(f"{goodbad} {metric} {name} EV {ev1} {ev2}",)
+            fig.suptitle(
+                f"{goodbad} {metric} {name} EV {ev1} {ev2}",
+            )
             if save_path is not None:
                 plt.savefig(save_path / f"{name}_{goodbad}")
 
 
 def pred_distance(threshold, df, c1, c2):
-    """ df: two columns of the df to be diffed
-    """
+    """df: two columns of the df to be diffed"""
     diff = abs(df[c1] - df[c2])
     return diff.where(diff <= threshold).count() / len(df)
+
+
+def dprint(obj):
+    """
+    debug the object passed in
+    """
+    print(f"{obj=}")
+
+
+import pandas as pd
+
+
+def get_scores_for_preds(pred_df, score_df):
+    """
+    Get the scores for each metric associated with each of the topk
+    predictions per image stored in pred_df from score_df
+    """
+
+    score_list = (
+        score_df.loc[(score_df["name"] == name) & (score_df["ev"].isin(pred))]
+        for _, (name, pred) in pred_df.iterrows()
+    )
+    scores = pd.concat(score_list).drop_duplicates()
+    return scores
+
+
+def get_topk_score_df(df, k=5):
+    topk_dfs = []
+    orig_df = df.copy()
+    for i in range(k):
+        idx_mins = (
+            df[(df["metric"] == "perceptual") | (df["metric"] == "rmse")]
+            .groupby(["name", "metric"])["score"]
+            .idxmin()
+        )
+        idx_maxs = (
+            df[(df["metric"] == "ssim") | (df["metric"] == "psnr")]
+            .groupby(["name", "metric"])["score"]
+            .idxmax()
+        )
+        df = df.drop(labels=idx_mins, axis="index")
+        df = df.drop(labels=idx_maxs, axis="index")
+        topk_dfs.append(orig_df.loc[idx_mins])
+        topk_dfs.append(orig_df.loc[idx_maxs])
+
+    topk = pd.concat(topk_dfs)
+    return topk
