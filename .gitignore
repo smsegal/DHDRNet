@@ -380,3 +380,4 @@ checkpoints/*
 flycheck*
 
 .ob-jupyter
+fastdata/
