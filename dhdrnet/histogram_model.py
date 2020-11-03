@@ -16,14 +16,16 @@ class HistogramNet(DHDRNet):
         super().__init__(*args, **kwargs)
 
         self.bins = bins
-        self.model = nn.Sequential(
-            nn.Linear(self.bins, self.bins),
-            nn.ReLU(),
-            nn.Linear(self.bins, self.bins),
-            nn.ReLU(),
-            nn.Linear(self.bins, self.num_classes),
-            nn.ReLU(),
-        )
+
+        self.model = nn.Linear(self.bins, self.num_classes)
+        # self.model = nn.Sequential(
+        #     nn.Linear(self.bins, self.bins),
+        #     nn.ReLU(),
+        #     nn.Linear(self.bins, self.bins),
+        #     nn.ReLU(),
+        #     nn.Linear(self.bins, self.num_classes),
+        #     nn.ReLU(),
+        # )
         self.criterion = F.cross_entropy
 
     def forward(self, x):
