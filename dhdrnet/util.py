@@ -42,10 +42,7 @@ def get_project_root() -> Path:
 
 
 ROOT_DIR: Path = get_project_root()
-if "DHDR_DATA_DIR" in os.environ:
-    DATA_DIR = Path(str(os.environ["DHDR_DATA_DIR"]))
-else:
-    DATA_DIR = ROOT_DIR / "data"
+DATA_DIR = ROOT_DIR / "fastdata"
 
 
 def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):

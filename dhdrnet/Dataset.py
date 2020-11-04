@@ -99,8 +99,8 @@ class HistogramDataset(LUTDataset):
         self.bins = bins
 
     def __getitem__(self, index: int):
-        mid_ev_image, label_idx, stats = super().__getitem__(index)
-        return torch.histc(mid_ev_image, bins=self.bins), label_idx, stats
+        mid_ev_image, label_idx, name = super().__getitem__(index)
+        return torch.histc(mid_ev_image, bins=self.bins), label_idx, name
 
 
 @deprecated

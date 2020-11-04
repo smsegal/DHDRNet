@@ -83,7 +83,7 @@ class GenAllPairs:
                 "rmse": rmse,
                 "psnr": peak_signal_noise_ratio,
                 "ssim": partial(structural_similarity, multichannel=True),
-                # "perceptual": PerceptualMetric(),
+                "perceptual": PerceptualMetric(),
             }
             self.metrics = list(self.metricfuncs.keys())
 
