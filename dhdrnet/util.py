@@ -2,8 +2,7 @@ import csv
 import os
 import random
 from collections import defaultdict
-from contextlib import (ExitStack, contextmanager, redirect_stderr,
-                        redirect_stdout)
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -259,6 +258,14 @@ def get_scores_for_preds(pred_df, score_df):
     scores = pd.concat(score_list).drop_duplicates()
     return scores
 
+
+def get_pred(pred_df, score_df):
+    score_list = (
+        score_df.loc[(score_df["name"] == name) & (score_df["ev"] == pred[0])]
+        for _, (name, pred) in pred_df.iterrows()
+    )
+    scores = pd.concat(score_list).drop_duplicates()
+    return scores
 
 def get_topk_score_df(df, k=5):
     topk_dfs = []
