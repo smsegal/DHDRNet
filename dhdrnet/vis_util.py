@@ -160,7 +160,7 @@ def recolour_image(weight_maps, colours):
     # want the colour of the fused image to be that of largest
     # magnitude of the original weight maps
     brightest = np.max(weight_maps, axis=0)
-    for i, (wm, c) in enumerate(zip(weight_maps, colour_vals)):
+    for wm, c in zip(weight_maps, colour_vals):
         fused[wm >= brightest] = c
 
     return coloured_wms, fused

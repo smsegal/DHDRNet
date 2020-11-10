@@ -1,14 +1,14 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
+from deprecated import deprecated
 from more_itertools.more import one
 from more_itertools.recipes import flatten
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-import numpy as np
-from deprecated import deprecated
 
 from dhdrnet.gen_pairs import GenAllPairs
 

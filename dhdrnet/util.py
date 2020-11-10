@@ -2,7 +2,8 @@ import csv
 import os
 import random
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
+from contextlib import (ExitStack, contextmanager, redirect_stderr,
+                        redirect_stdout)
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -41,7 +42,7 @@ def get_project_root() -> Path:
 
 
 ROOT_DIR: Path = get_project_root()
-DATA_DIR = ROOT_DIR / "fastdata"
+DATA_DIR = ROOT_DIR / "data"
 
 
 def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
@@ -266,6 +267,7 @@ def get_pred(pred_df, score_df):
     )
     scores = pd.concat(score_list).drop_duplicates()
     return scores
+
 
 def get_topk_score_df(df, k=5):
     topk_dfs = []
