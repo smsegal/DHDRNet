@@ -1,11 +1,12 @@
 import argparse
 import operator as op
+import sys
 from collections import defaultdict
 from functools import partial, reduce
 from itertools import product, repeat
 from pathlib import Path
 from typing import Callable, Collection, List, Optional
-import sys
+
 import cv2 as cv
 import exifread
 import numpy as np
@@ -15,11 +16,8 @@ import torch
 from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (
-    peak_signal_noise_ratio,
-    structural_similarity,
-    mean_squared_error
-)
+from skimage.metrics import (mean_squared_error, peak_signal_noise_ratio,
+                             structural_similarity)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
