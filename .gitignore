@@ -381,3 +381,5 @@ flycheck*
 
 .ob-jupyter
 fastdata/
+.vscode/
+.run/
