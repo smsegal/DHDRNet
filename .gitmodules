@@ -1,0 +1,3 @@
+[submodule "precomputed_data"]
+	path = precomputed_data
+	url = git@github.com:smsegal/DHDRNet-data.git

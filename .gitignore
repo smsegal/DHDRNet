@@ -383,3 +383,5 @@ flycheck*
 fastdata/
 .vscode/
 .run/
+
+precomputed_data.old/
