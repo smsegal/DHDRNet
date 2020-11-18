@@ -6,6 +6,6 @@ It introduces a convolutional network that predicts the two optimal photos neede
 
 This system effectively cuts the requirements of common Exposure Fusion HDR systems from needing 5 source images to only two, in an intelligent manner. 
 
-Code written with PyTorch. 
+Code written with PyTorch and PyTorch Lightning. 
 
 This code hasn't necessarily been cleaned up for public view. Lots of in progress research notes and experimentation contained in the notebooks and maybe the code comments :)
