@@ -1,6 +1,8 @@
 # DHDRNet
 
-This work accompanies my thesis: "Exposure Fusion with Learned Image Selection".
+This work accompanies my thesis: "Exposure Fusion with Learned Image Selection**.
+
+DHDRNet, or **D**ual-photo **HDR** **Net**work lets you effectively create HDR images from only two captures, instead of the usual five commonly required.
 
 It introduces a convolutional network that predicts the two optimal photos needed to generate a high quality HDR image with Exposure Fusion. It also introduces a data generation system that creates synthetically exposed images and accounts for metadata corruption in order to generate a high quality training set.
 
