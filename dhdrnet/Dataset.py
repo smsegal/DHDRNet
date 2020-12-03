@@ -27,14 +27,6 @@ class LUTDataset(Dataset):
         self.transform = transform
 
         names = flatten(pd.read_csv(name_list).to_numpy())
-        # df = df.set_index("name")
-
-        # # ev 0
-        # baseline_df = df[(df["ev1"] == 0) | (df["ev2"] == 0)].copy()
-        # baseline_df["ev"] = baseline_df[["ev1", "ev2"]].apply(
-        #     lambda evs: [e for e in evs if e != 0][0], axis=1
-        # )
-        # baseline_df = baseline_df.drop(columns=["ev1", "ev2"])
 
         by_ev = df.pivot_table(index="name", columns=["metric", "ev"], values="score")
         by_ev = by_ev.loc[by_ev.index.intersection(names)]

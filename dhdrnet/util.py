@@ -60,7 +60,6 @@ def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
 
     return files, train, test
 
-
 def split_data(data_dir: Path, root_dir: Path) -> DefaultDict[Path, List[Path]]:
     """
     End file hierarchy should look like:

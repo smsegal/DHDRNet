@@ -13,8 +13,6 @@ from torchsummary import summary
 from torchvision import models
 from torchvision.transforms import (
     Compose,
-    RandomHorizontalFlip,
-    RandomVerticalFlip,
     Resize,
     ToTensor,
 )

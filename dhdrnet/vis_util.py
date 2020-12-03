@@ -1,5 +1,4 @@
 from itertools import repeat
-from pprint import pprint
 
 import matplotlib.colors as mc
 import matplotlib.pyplot as plt
@@ -65,9 +64,6 @@ def view_data_sample(dataset, idx=None):
     )
     for ax, im in zip(exp_grid, sample["exposures"]):
         ax.imshow(im)
-
-
-#%%
 
 
 def get_pred_dist(stats_df, categories, type, save_plots=False):

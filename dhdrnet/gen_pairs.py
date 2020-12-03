@@ -162,9 +162,9 @@ class GenAllPairs:
             *self.exposures[self.exposures > 0],
         ]
 
+        ground_truth = self.get_ground_truth(img_name)
         options = product(ev_options, self.metrics)
         for ev, metric in options:
-            ground_truth = self.get_ground_truth(img_name)
             reconstruction = self.get_reconstruction(img_name, 0.0, ev)
             stats["name"].append(img_name)
             stats["metric"].append(metric)
