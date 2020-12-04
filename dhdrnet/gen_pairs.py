@@ -16,8 +16,11 @@ import torch
 from lpips import LPIPS, im2tensor
 from more_itertools import flatten
 from pandas.core.frame import DataFrame
-from skimage.metrics import (mean_squared_error, peak_signal_noise_ratio,
-                             structural_similarity)
+from skimage.metrics import (
+    mean_squared_error,
+    peak_signal_noise_ratio,
+    structural_similarity,
+)
 from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
