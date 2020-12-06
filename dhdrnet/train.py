@@ -46,7 +46,7 @@ def main(hparams=None):
         mode="min",
         save_top_k=3,
         prefix=hparams.backbone,
-        filepath=ROOT_DIR / "checkpoints/dhdr-{epoch}-{val_loss:.2f}",
+        filepath=ROOT_DIR / "checkpoints" / "dhdr-{epoch}-{val_loss:.2f}",
     )
 
     early_stopping = EarlyStopping("val_loss", patience=15)
