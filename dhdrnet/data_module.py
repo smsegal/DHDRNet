@@ -1,4 +1,4 @@
-from pytorch_lightning import LightningDataModule
+from pytorch_lightning.core.lightning import LightningDataModule
 from math import ceil
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
