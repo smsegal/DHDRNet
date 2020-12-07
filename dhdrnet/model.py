@@ -5,6 +5,7 @@ import torch.nn as nn
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
+from torch.optim import lr_scheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 
@@ -31,7 +32,11 @@ class DHDRNet(LightningModule):
     def configure_optimizers(self):
         optimizer = Adam(self.parameters(), lr=self.learning_rate, weight_decay=1e-5)
         scheduler = ReduceLROnPlateau(optimizer)
-        return [optimizer], [scheduler]
+        return {
+            "optimizer": optimizer,
+            "scheduler": scheduler,
+            "monitor": "val_loss",
+        }
 
     def common_step(self, batch):
         mid_exposure, label = batch
