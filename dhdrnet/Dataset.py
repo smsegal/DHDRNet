@@ -12,7 +12,6 @@ from torchvision import transforms
 
 from dhdrnet.gen_pairs import GenAllPairs
 
-
 class LUTDataset(Dataset):
     def __init__(
         self,

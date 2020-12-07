@@ -6,14 +6,11 @@ authors = ["Shane Segal <shane@smsegal.ca>"]
 
 [tool.poetry.dependencies]
 python = "~3.8"
-torch = "^1.5.0"
-torchvision = "^0.6.0"
 colour-hdri = {extras = ["optional"], version = "^0.1.6"}
 scikit-image = "^0.16.2"
 more-itertools = "^8.2.0"
 pillow = "^7.0.0"
 tqdm = "^4.46.0"
-pytorch-lightning = "^0.8.5"
 pytorch-msssim = "^0.2.0"
 pandas = "^1.0.4"
 tables = "^3.6.1"
@@ -29,6 +26,10 @@ exposure_fusion = "^0.1.1"
 pylint = "^2.6.0"
 pylama = "^7.7.1"
 Deprecated = "^1.2.10"
+torch = "^1.7.0"
+torchvision = "^0.8.1"
+pytorch-lightning = "^1.0.8"
+fire = "^0.3.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
