@@ -1,4 +1,4 @@
-from pytorch_lightning.core.lightning import LightningDataModule
+import pytorch_lightning as pl
 from math import ceil
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
@@ -10,14 +10,14 @@ from typing import List, Optional, Union
 import pandas as pd
 
 
-class HDRDataModule(LightningDataModule):
+class HDRDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: Path = DATA_DIR,
         precomputed_data_dir: Path = ROOT_DIR / "precomputed_data",
         batch_size: int = 20,
     ):
-        super.__init__()
+        super().__init__()
         self.data_dir = data_dir
         self.precomputed_data_dir = precomputed_data_dir
         self.batch_size = batch_size

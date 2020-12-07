@@ -13,11 +13,7 @@ from dhdrnet.squeezenet import squeezenet1_1
 
 
 class DHDRNet(LightningModule):
-    def __init__(
-        self,
-        learning_rate=1e-3,
-        batch_size=8,
-    ):
+    def __init__(self, learning_rate=1e-3, batch_size=8, want_summary=False):
         super().__init__()
         self.num_classes = 36
         self.learning_rate = learning_rate
