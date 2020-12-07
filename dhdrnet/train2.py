@@ -51,6 +51,8 @@ def train(
             EarlyStopping(monitor="val_loss", patience=15),
             ModelCheckpoint(
                 dirpath=Path(checkpoint_path) / backbone,
+                save_last=True,
+                monitor="val_loss"
             ),
         ],
         resume_from_checkpoint=resume_path,

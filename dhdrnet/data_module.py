@@ -37,7 +37,7 @@ class HDRDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             hdr_full = LUTDataset(
                 df=self.df,
-                exposure_path=(self.data_dir / "correct_exposures" / "exposures"),
+                exposure_path=(self.data_dir / "exposures"),
                 raw_dir=self.data_dir / "dngs",
                 name_list=self.precomputed_data_dir / "train_current.csv",
                 transform=self.transform,
@@ -51,7 +51,7 @@ class HDRDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             self.hdr_test = LUTDataset(
                 df=self.df,
-                exposure_path=(self.data_dir / "correct_exposures" / "exposures"),
+                exposure_path=(self.data_dir / "exposures"),
                 raw_dir=self.data_dir / "dngs",
                 name_list=self.precomputed_data_dir / "test_current.csv",
                 transform=self.transform,

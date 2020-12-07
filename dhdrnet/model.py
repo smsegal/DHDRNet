@@ -45,7 +45,7 @@ class DHDRNet(LightningModule):
         loss = self.criterion(outputs, label)
         return loss
 
-    def training_step(self, batch) -> Tensor:
+    def training_step(self, batch, *_rest) -> Tensor:
         loss = self.common_step(batch)
         self.log("training_loss", loss)
         return loss
@@ -55,7 +55,7 @@ class DHDRNet(LightningModule):
         self.log("val_loss", loss)
         return loss
 
-    def test_step(self, batch) -> Tensor:
+    def test_step(self, batch, batch_idx) -> Tensor:
         loss = self.common_step(batch)
         self.log("test_loss", loss)
         return loss
