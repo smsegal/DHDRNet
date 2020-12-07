@@ -74,7 +74,7 @@ def train(
     )
 
     if stage == "train":
-        trainer.fit(model, data_module)
+        trainer.fit(model, datamodule=data_module)
 
     trainer.test()
 
