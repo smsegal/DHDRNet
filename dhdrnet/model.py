@@ -50,7 +50,7 @@ class DHDRNet(LightningModule):
         self.log("training_loss", loss)
         return loss
 
-    def validation_step(self, batch) -> Tensor:
+    def validation_step(self, batch, _batch_idx) -> Tensor:
         loss = self.common_step(batch)
         self.log("val_loss", loss)
         return loss
