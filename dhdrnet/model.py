@@ -39,7 +39,7 @@ class DHDRNet(LightningModule):
         }
 
     def common_step(self, batch):
-        mid_exposure, label = batch
+        mid_exposure, label, image_name = batch
         outputs = self(mid_exposure)
 
         loss = self.criterion(outputs, label)
@@ -50,7 +50,7 @@ class DHDRNet(LightningModule):
         self.log("training_loss", loss)
         return loss
 
-    def validation_step(self, batch, _batch_idx, _dl_idx) -> Tensor:
+    def validation_step(self, batch, *_rest) -> Tensor:
         loss = self.common_step(batch)
         self.log("val_loss", loss)
         return loss
