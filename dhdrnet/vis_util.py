@@ -101,12 +101,8 @@ def get_pred_dist(stats_df, categories, type, save_plots=False):
 def show_predictions(predictions, model_name, image_names, ev_options):
     for pred, img_name in zip(predictions, image_names):
         ev = ev_options[pred]
-        pred_img = Image.open(
-            DATA_DIR / "correct_exposures" / "exposures" / f"{img_name}[{ev}].png"
-        )
-        baseline_img = Image.open(
-            DATA_DIR / "correct_exposures" / "exposures" / f"{img_name}[0.0].png"
-        )
+        pred_img = Image.open(DATA_DIR / "exposures" / f"{img_name}[{ev}].png")
+        baseline_img = Image.open(DATA_DIR / "exposures" / f"{img_name}[0.0].png")
         show_image_pair(
             baseline_img,
             pred_img,
@@ -117,14 +113,9 @@ def show_predictions(predictions, model_name, image_names, ev_options):
         lower = np.minimum(ev, 0.0)
         upper = np.maximum(ev, 0.0)
         reconstructed = Image.open(
-            DATA_DIR
-            / "correct_exposures"
-            / "reconstructions"
-            / f"{img_name}[{lower}][{upper}].png"
+            DATA_DIR / "fusions" / f"{img_name}[{lower}][{upper}].png"
         )
-        ground_truth = Image.open(
-            DATA_DIR / "correct_exposures" / "ground_truth" / f"{img_name}.png"
-        )
+        ground_truth = Image.open(DATA_DIR / "ground_truth" / f"{img_name}.png")
         show_image_pair(
             ground_truth,
             reconstructed,

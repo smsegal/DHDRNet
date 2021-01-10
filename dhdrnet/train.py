@@ -12,14 +12,14 @@ import pytorch_lightning as pl
 
 
 ModelClass: Dict[str, models.DHDRNet] = {
-   "squeeze": models.DHDRSqueezeNet,
-   "mobile_v1": models.DHDRMobileNet_v1,
-   "mobile_v2": models.DHDRMobileNet_v2,
-   "mobile_v3": models.DHDRMobileNet_v3,
-   "simple": models.DHDRSimple,
-   "hist": HistogramNet,
-   "resnet": resnet_model.DHDRResnet,
-   "reconstruction": reconstruction_model.RCNet,
+    "squeeze": models.DHDRSqueezeNet,
+    "mobile_v1": models.DHDRMobileNet_v1,
+    "mobile_v2": models.DHDRMobileNet_v2,
+    "mobile_v3": models.DHDRMobileNet_v3,
+    "simple": models.DHDRSimple,
+    "hist": HistogramNet,
+    "resnet": resnet_model.DHDRResnet,
+    "reconstruction": reconstruction_model.RCNet,
 }
 
 
@@ -52,7 +52,7 @@ def train(
             ModelCheckpoint(
                 dirpath=Path(checkpoint_path) / backbone,
                 save_last=True,
-                monitor="val_loss"
+                monitor="val_loss",
             ),
         ],
         resume_from_checkpoint=resume_path,
