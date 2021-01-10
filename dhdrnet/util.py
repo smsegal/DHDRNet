@@ -2,14 +2,14 @@ import csv
 import os
 import random
 from collections import defaultdict
-from contextlib import (ExitStack, contextmanager, redirect_stderr,
-                        redirect_stdout)
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
 
 import numpy as np
+import pandas as pd
 from more_itertools import flatten
 from PIL import Image
 
@@ -59,6 +59,7 @@ def create_train_test_split(data_dir: Path, train_split=0.9, dry_run=False):
             split_file.write_text("\n".join([fname.stem for fname in split]))
 
     return files, train, test
+
 
 def split_data(data_dir: Path, root_dir: Path) -> DefaultDict[Path, List[Path]]:
     """
@@ -240,9 +241,6 @@ def dprint(obj):
     debug the object passed in
     """
     print(f"{obj=}")
-
-
-import pandas as pd
 
 
 def get_scores_for_preds(pred_df, score_df):
