@@ -233,7 +233,7 @@ def best_worse_metric(dfg, metric, n, save_path=None):
 def pred_distance(threshold, df, c1, c2):
     """df: two columns of the df to be diffed"""
     diff = abs(df[c1] - df[c2])
-    return diff.where(diff <= threshold).count() / len(df)
+    return diff[diff <= threshold].count()
 
 
 def dprint(obj):
