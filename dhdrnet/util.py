@@ -248,7 +248,6 @@ def get_scores_for_preds(pred_df, score_df):
     Get the scores for each metric associated with each of the topk
     predictions per image stored in pred_df from score_df
     """
-
     score_list = (
         score_df.loc[(score_df["name"] == name) & (score_df["ev"].isin(pred))]
         for _, (name, pred) in pred_df.iterrows()
@@ -264,6 +263,27 @@ def get_pred(pred_df, score_df):
     )
     scores = pd.concat(score_list).drop_duplicates()
     return scores
+
+
+def get_worst_preds(pred_df, score_df, metric, dir, n=10):
+    if dir == "up":  # higher scores are worse
+        ascending = True
+    elif dir == "down":
+        ascending = False
+
+    scores = get_scores_for_preds(pred_df, score_df)
+
+    worst_n = (
+        scores[scores["metric"] == metric]
+        .sort_values(by="score", ascending=ascending)
+        .head(n)
+    )
+    return worst_n
+
+
+# TODO
+def get_furthest_pred(pred_df, score_df, n=10):
+    preds = get_pred(pred_df, score_df)
 
 
 def get_topk_score_df(df, k=5):
