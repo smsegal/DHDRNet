@@ -1,6 +1,6 @@
 # DHDRNet
 
-This work accompanies my thesis: "**Exposure Fusion with Learned Image Selection**".
+This work accompanies my thesis: "**Learned Exposure Selection for High Dynamic Rang Image Synthesis**".
 
 DHDRNet, or **D**ual-photo **HDR** **Net**work lets you effectively create HDR images with 60% fewer resources when compared with standard [Exposure Fusion](https://en.wikipedia.org/wiki/Exposure_fusion) [1].
 
@@ -57,4 +57,5 @@ See the output of `python -m dhdrnet.train --help` for more options that can cus
 Code written with PyTorch and PyTorch Lightning.
 
 [1] T. Mertens, J. Kautz, and F. Van Reeth, “Exposure Fusion: A Simple and Practical Alternative to High Dynamic Range Photography,” Computer Graphics Forum, vol. 28, no. 1, pp. 161–171, Mar. 2009, doi: 10.1111/j.1467-8659.2008.01171.x.
+
 [2] S. W. Hasinoff et al., “Burst photography for high dynamic range and low-light imaging on mobile cameras,” ACM Trans. Graph., vol. 35, no. 6, pp. 1–12, Nov. 2016, doi: 10.1145/2980179.2980254.
