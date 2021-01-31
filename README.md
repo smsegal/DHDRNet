@@ -1,6 +1,6 @@
 # DHDRNet
 
-This work accompanies my thesis: "**Learned Exposure Selection for High Dynamic Rang Image Synthesis**".
+This work accompanies my thesis: "**Learned Exposure Selection for High Dynamic Range Image Synthesis**".
 
 DHDRNet, or **D**ual-photo **HDR** **Net**work lets you effectively create HDR images with 60% fewer resources when compared with standard [Exposure Fusion](https://en.wikipedia.org/wiki/Exposure_fusion) [1].
 
@@ -26,6 +26,7 @@ Download the HDR+ DNG files from google with:
 ```sh
 python -m dhdrnet.data_prep download --out=./foo
 ```
+This utilizes the [Google Cloud SDK](https://cloud.google.com/sdk/docs/quickstart), so make sure you've signed in and authenticated. 
 
 After the DNG files are downloaded, the synthetic exposures and fused images can be generated with: 
 
@@ -50,7 +51,6 @@ python -m dhdrnet.train --model=mobilenetv2 --data-dir=./bar --logdir=./baz
 This will by default output tensorboard logs in `logs/`. 
 
 See the output of `python -m dhdrnet.train --help` for more options that can customize training.
-
 
 
 

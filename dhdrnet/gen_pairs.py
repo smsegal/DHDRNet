@@ -1,9 +1,8 @@
 import argparse
 import operator as op
-import sys
 from collections import defaultdict
 from functools import partial, reduce
-from itertools import product, repeat
+from itertools import product
 from pathlib import Path
 from typing import Callable, Collection, List, Optional
 
