@@ -3,7 +3,7 @@ from math import ceil
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from dhdrnet.util import DATA_DIR, ROOT_DIR
-from dhdrnet.Dataset import LUTDataset
+from dhdrnet.dataset import LUTDataset
 from pathlib import Path
 from typing import List, Optional, Union
 
