@@ -34,6 +34,7 @@ plumbum = "^1.6.9"
 IProgress = "^0.4"
 ipywidgets = "^7.6.3"
 rich = "^9.10.0"
+rawpy = "^0.16.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

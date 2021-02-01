@@ -1339,6 +1339,17 @@ cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 py = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
+name = "rawpy"
+version = "0.16.0"
+description = "RAW image processing for Python, a wrapper for libraw"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+numpy = "*"
+
+[[package]]
 name = "recordclass"
 version = "0.14.3"
 description = "Mutable variants of tuple (mutabletuple) and collections.namedtuple (recordclass), which support assignments and more memory saving variants (dataobject, structclass, litelist, ...)."
@@ -1787,7 +1798,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.8"
-content-hash = "c504ca54abfb406be5d033a60256d11b1eff37eb971be0d4bb0cefd00def09d9"
+content-hash = "bc81d58876d1feafb24926c463b3c41882b6dd16ca05b61f1d7743dc813bd276"
 
 [metadata.files]
 absl-py = [
@@ -2773,6 +2784,20 @@ pyzmq = [
     {file = "pyzmq-22.0.2-pp37-pypy37_pp73-manylinux2010_x86_64.whl", hash = "sha256:841e9563ce9bd33fe9f227ec680ac033e9f1060977d613568c1dcbff09e74cc9"},
     {file = "pyzmq-22.0.2-pp37-pypy37_pp73-win32.whl", hash = "sha256:cc814880ba27f2ea8cea48ff3b480076266d4dd9c3fe29ef6e5a0a807639abe7"},
     {file = "pyzmq-22.0.2.tar.gz", hash = "sha256:d7b82a959e5e22d492f4f5a1e650e909a6c8c76ede178f538313ddb9d1e92963"},
+]
+rawpy = [
+    {file = "rawpy-0.16.0-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:65b5a60d72d637d4a69bb6e2701b6d504c730f342e1328446bbc5997964e47bb"},
+    {file = "rawpy-0.16.0-cp36-cp36m-manylinux2010_x86_64.whl", hash = "sha256:331a7947b6d8d5737d20c9b7337c51fdefcbea4bde372542cf1e8837dd9b9a66"},
+    {file = "rawpy-0.16.0-cp36-cp36m-win_amd64.whl", hash = "sha256:8eb562c261c51c0bd94b43f3ed4e69d3af72b77cd435ef8db9540f736f7b019b"},
+    {file = "rawpy-0.16.0-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:10260c65c24216a5cc566238d03459ff708076640758b807b3b6165da914210e"},
+    {file = "rawpy-0.16.0-cp37-cp37m-manylinux2010_x86_64.whl", hash = "sha256:e7c07159accb6858b68631f60ec5616fe62fa0b665d9e4d8dda42c1d6e658067"},
+    {file = "rawpy-0.16.0-cp37-cp37m-win_amd64.whl", hash = "sha256:0138672ffb7ba53d41ec80d792cd2c5bfbf46b45dc51574a38fd2205030833de"},
+    {file = "rawpy-0.16.0-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:c702e711b97057b88120a66a4f3be6fab65ecc646683fe35cdc5ef0c6a19dd1c"},
+    {file = "rawpy-0.16.0-cp38-cp38-manylinux2010_x86_64.whl", hash = "sha256:b12e824181b2cb71f5c2b6801e264e6891752385d82d97ba4b81d961efb6ff50"},
+    {file = "rawpy-0.16.0-cp38-cp38-win_amd64.whl", hash = "sha256:651f9fdad076bb55052a4839dcc7c874d51904f7788c90e543c0dbba548f229f"},
+    {file = "rawpy-0.16.0-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:fbf1a304a0c6ea6e9d4b26e3057575b6822046087142294f7842b111d2c0f6b0"},
+    {file = "rawpy-0.16.0-cp39-cp39-manylinux2010_x86_64.whl", hash = "sha256:f76d67171ddfe6cda579c81d8b091ff1ead27b6ed2b93f8f913d2f92c7cea500"},
+    {file = "rawpy-0.16.0-cp39-cp39-win_amd64.whl", hash = "sha256:e6ffd2cbbe119fbc91bfd364abffea0f4f8d0d92a86505cf68d51f064eaab91f"},
 ]
 recordclass = [
     {file = "recordclass-0.14.3-cp27-cp27m-win32.whl", hash = "sha256:016a70b9e1d93e184a065a23d9bd15387c154375a166fd8868db96f362d77d94"},

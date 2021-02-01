@@ -1,12 +1,11 @@
 import sys
 from functools import partial
 from pathlib import Path
-from typing import Iterable, List, Optional
-
-from rich import print
+from typing import Iterable, List, Optional, Union, TypeVar
 
 import fire
 from plumbum import ProcessExecutionError, local
+from rich import print
 from tqdm.contrib.concurrent import thread_map
 
 """
@@ -30,7 +29,7 @@ def get_image_names(url: str) -> Iterable[str]:
     return image_names
 
 
-def down_file(fname: str, out_path: Path) -> Optional[Path]:
+def download_file(fname: str, out_path: Path) -> Optional[Path]:
     dng_downloader = gsdl[f"gs://{hdrplus_bucket_base}/{fname}/merged.dng"]
     try:
         dng_downloader(f"{out_path}/{fname}.dng")
@@ -63,7 +62,7 @@ def download(
         out.mkdir(parents=True)
 
     downloaded_files = thread_map(
-        partial(down_file, out_path=out),
+        partial(download_file, out_path=out),
         image_names,
         max_workers=max_threads,
         chunksize=min(50, len(image_names)),
@@ -72,5 +71,42 @@ def download(
     return downloaded_files
 
 
+def coerce_path(maybe_path: Union[Path, str]) -> Path:
+    if isinstance(maybe_path, str):
+        return Path(maybe_path)
+    else:
+        return maybe_path
+
+
+def generate_data(
+    download_dir: Union[str, Path] = default_download_dir,
+    out: Union[str, Path] = Path("./generated_data"),
+    multithreaded: bool = True,
+    compute_stats: bool = True,
+    stats_path: Union[str, Path] = Path("./generated_statistics.csv"),
+    min_exposure: float = -6,
+    max_exposure: float = 6,
+    exposure_step: float = 0.25,
+):
+    from .data_generator import DataGenerator
+
+    download_dir = coerce_path(download_dir)
+    out = coerce_path(out)
+    stats_path = coerce_path(stats_path)
+
+    generator = DataGenerator(
+        raw_path=download_dir,
+        out_path=out,
+        multithreaded=multithreaded,
+        exp_min=min_exposure,
+        exp_max=max_exposure,
+        exp_step=exposure_step,
+        compute_scores=compute_stats,
+        store_path=stats_path,
+        image_names=[d.stem for d in download_dir.iterdir()],
+    )
+    generator()
+
+
 if __name__ == "__main__":
-    fire.Fire()
+    fire.Fire({"download": download, "generate-data": generate_data})

@@ -31,7 +31,7 @@ This utilizes the [Google Cloud SDK](https://cloud.google.com/sdk/docs/quickstar
 After the DNG files are downloaded, the synthetic exposures and fused images can be generated with: 
 
 ```sh
-python -m dhdrnet.data_prep --download-dir=./foo --out=./bar
+python -m dhdrnet.data_prep generate-data --download-dir=./foo --out=./bar
 ```
 
 See the `python -m dhdrnet.data_prep --help` output for further command line arguments that can customize aspects of the data generation process.
