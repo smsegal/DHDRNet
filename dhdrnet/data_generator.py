@@ -12,9 +12,10 @@ import numpy as np
 import pandas as pd
 import rawpy
 import torch
-from lpips import LPIPS, im2tensor
-from more_itertools import flatten
-from pandas.core.frame import DataFrame
+from lpips import LPIPS as LPIPS_orig
+from lpips import im2tensor
+from more_itertools import collapse, flatten, one
+from pandas import DataFrame
 from skimage.metrics import (
     mean_squared_error,
     peak_signal_noise_ratio,
@@ -28,14 +29,14 @@ from dhdrnet.util import DATA_DIR
 
 
 def main(args):
-    generator = GenAllPairs(
+    generator = DataGenerator(
         raw_path=Path(args.raw_path),
         out_path=Path(args.out_path),
         store_path=Path(args.store_path),
         exp_max=args.exp_max,
         exp_min=args.exp_min,
         exp_step=args.exp_step,
-        single_threaded=args.single_thread,
+        multithreaded=args.single_thread,
         image_names=args.image_names,
     )
     if args.updown:
@@ -49,7 +50,7 @@ def main(args):
         data.to_csv(args.store_path)
 
 
-class GenAllPairs:
+class DataGenerator:
     def __init__(
         self,
         raw_path: Path,
@@ -59,8 +60,9 @@ class GenAllPairs:
         exp_min: float = -3,
         exp_max: float = 6,
         exp_step: float = 0.25,
-        single_threaded: bool = False,
+        multithreaded: bool = True,
         image_names=None,
+        metrics: List[str] = ["rmse", "psnr", "ssim", "lpips"],
     ):
         self.exposures: np.ndarray = np.linspace(
             exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
@@ -75,17 +77,20 @@ class GenAllPairs:
 
         if image_names is None:
             self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
+        elif isinstance(image_names, List):
+            self.image_names = image_names
         else:
             self.image_names = list(flatten(pd.read_csv(image_names).to_numpy()))
 
         if compute_scores:
-            self.metricfuncs = {
+            all_metric_fns = {
                 "rmse": rmse,
                 "psnr": peak_signal_noise_ratio,
                 "ssim": partial(structural_similarity, multichannel=True),
-                "perceptual": PerceptualMetric(),
+                "lpips": LPIPS(),
             }
-            self.metrics = list(self.metricfuncs.keys())
+            self.metric_fns = {k: v for k, v in all_metric_fns if k in metrics}
+            self.metrics = list(self.metric_fns.keys())
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
@@ -94,35 +99,29 @@ class GenAllPairs:
         self.fused_out_path.mkdir(parents=True, exist_ok=True)
 
         if store_path:
-            self.store_path = store_path
+            self.store_path: Path = store_path
             self.store: DataFrame
             if store_path.is_file():
                 self.store = pd.read_csv(
                     store_path, usecols=["name", "metric", "ev1", "ev2", "score"]
                 )
             else:
-                self.store = pd.DataFrame(
+                self.store = DataFrame(
                     data=None, columns=["name", "metric", "ev1", "ev2", "score"]
                 )
                 self.store_path.parent.mkdir(parents=True, exist_ok=True)
 
             self.store.to_csv(self.store_path, index=False)
 
-        self.single_threaded = single_threaded
-
-        self.written_store = False
-
-        self._ff: Callable[
-            [List[np.ndarray]], np.ndarray
-        ] = cv.createMergeMertens().process
+        self.multithreaded = multithreaded
 
     def __call__(self):
-        if self.single_threaded:
-            stats = self.stats_dispatch()
-        else:
+        if self.multithreaded:
             stats = self.stats_dispatch_parallel()
+        else:
+            stats = self.stats_dispatch()
 
-        stats_df = pd.DataFrame.from_dict(stats)
+        stats_df = DataFrame.from_dict(stats)
         print(f"computed all stats, saved in {self.store}")
         return stats_df
 
@@ -149,7 +148,7 @@ class GenAllPairs:
                 updown_img = self.get_updown(name, ev)
                 ground_truth = self.get_ground_truth(name)
                 for metric in self.metrics:
-                    score = self.metricfuncs[metric](ground_truth, updown_img)
+                    score = self.metric_fns[metric](ground_truth, updown_img)
                     records.append((name, metric, ev, score))
 
         stats = pd.DataFrame.from_records(
@@ -172,9 +171,7 @@ class GenAllPairs:
             stats["metric"].append(metric)
             stats["ev1"].append(0.0)
             stats["ev2"].append(ev)
-            stats["score"].append(
-                self.metricfuncs[metric](ground_truth, reconstruction)
-            )
+            stats["score"].append(self.metric_fns[metric](ground_truth, reconstruction))
 
         df = pd.DataFrame.from_dict(stats)
         df.to_csv(self.store_path, mode="a", header=None, index=False)
@@ -212,6 +209,9 @@ class GenAllPairs:
             name, ev_list=[ev1, ev2], out_path=self.reconstructed_out_path
         )
 
+    def fuse_fn(self, images) -> np.ndarray:
+        return cv.createMergeMertens().process(images)
+
     def get_fused(
         self,
         name: str,
@@ -233,7 +233,7 @@ class GenAllPairs:
         else:
             # print(f"generating fused file: {fused_path}", sys.stderr)
             images = self.get_exposures(name, ev_list)
-            fused_im = self._ff([im.astype("float32") for im in images])
+            fused_im = self.fuse_fn([im.astype("float32") for im in images])
             fused_im = np.clip(fused_im * 255, 0, 255).astype("uint8")
 
             cv.imwrite(str(fused_path), fused_im)
@@ -308,48 +308,46 @@ def nested_dict_merge(d1, d2):
     return merged
 
 
-def PerceptualMetric(net: str = "alex") -> Callable:
-    from more_itertools import collapse, one
+class LPIPS:
+    def __init__(self, net: str = "alex") -> None:
+        self.net: str = net
+        self.usegpu: bool = torch.cuda.is_available()
+        self.model: nn.Module = LPIPS_orig(net=net, spatial=False)
+        if self.usegpu:
+            self.model = self.model.cuda()
 
-    model: nn.Module = LPIPS(net=net, spatial=False)
-    usegpu = torch.cuda.is_available()
-    if usegpu:
-        model = model.cuda()
-
-    def perceptual_loss_metric(ima: torch.Tensor, imb: torch.Tensor) -> torch.Tensor:
+    def __call__(self, ima: torch.Tensor, imb: torch.Tensor) -> torch.Tensor:
         ima_t, imb_t = map(im2tensor, [ima, imb])
-        if usegpu:
+        if self.usegpu:
             ima_t = ima_t.cuda()
             imb_t = imb_t.cuda()
 
-        dist = one(collapse(model.forward(ima_t, imb_t).data.cpu().numpy()))
+        dist = one(collapse(self.model.forward(ima_t, imb_t).data.cpu().numpy()))
         return dist
 
-    return perceptual_loss_metric
 
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Generate stats and images")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate stats and images")
+#     parser.add_argument("--out-path", "-o", help="where to save the processed files")
+#     parser.add_argument("--raw-path", help="location of raw files")
+#     parser.add_argument(
+#         "--store-path",
+#         help="file to store data in (created if does not exist)",
+#         default="store",
+#     )
 
-    parser.add_argument("--out-path", "-o", help="where to save the processed files")
-    parser.add_argument("--raw-path", help="location of raw files")
-    parser.add_argument(
-        "--store-path",
-        help="file to store data in (created if does not exist)",
-        default="store",
-    )
+#     parser.add_argument("--image-names", default=None)
 
-    parser.add_argument("--image-names", default=None)
+#     parser.add_argument("--exp-min", default=-3)
+#     parser.add_argument("--exp-max", default=6)
+#     parser.add_argument("--exp-step", default=0.25)
+#     parser.add_argument(
+#         "--multithread", help="single threaded mode", action="store_true"
+#     )
+#     parser.add_argument(
+#         "--updown", help="compute the updown strategy", action="store_true"
+#     )
 
-    parser.add_argument("--exp-min", default=-3)
-    parser.add_argument("--exp-max", default=6)
-    parser.add_argument("--exp-step", default=0.25)
-    parser.add_argument(
-        "--single-thread", help="single threaded mode", action="store_true"
-    )
-    parser.add_argument(
-        "--updown", help="compute the updown strategy", action="store_true"
-    )
-
-    args = parser.parse_args()
-    main(args)
+#     args = parser.parse_args()
+#     main(args)

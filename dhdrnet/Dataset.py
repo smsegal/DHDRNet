@@ -10,7 +10,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from dhdrnet.gen_pairs import GenAllPairs
+from dhdrnet.data_generator import DataGenerator
 
 class LUTDataset(Dataset):
     def __init__(
@@ -45,7 +45,7 @@ class LUTDataset(Dataset):
         self.data = by_ev
         self.names = pd.Series(self.data.index)
 
-        self.generator = GenAllPairs(
+        self.generator = DataGenerator(
             raw_path=raw_dir,
             out_path=exposure_path.parent,
             store_path=None,

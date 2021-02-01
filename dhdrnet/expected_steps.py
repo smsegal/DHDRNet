@@ -10,7 +10,7 @@ from skimage.metrics import (
 )
 from tqdm.contrib.concurrent import thread_map
 
-from dhdrnet.gen_pairs import GenAllPairs
+from dhdrnet.data_generator import DataGenerator
 from dhdrnet.util import DATA_DIR
 
 default_metrics = {
@@ -25,7 +25,7 @@ def num_exposures_needed(runs, metrics=default_metrics):
     Generate the approximate number of exposures needed for a low-enough
     reconstruction error when choosing with a given strategy.
     """
-    data_gen = GenAllPairs(
+    data_gen = DataGenerator(
         raw_path=DATA_DIR / "dngs",
         out_path=DATA_DIR / "correct_exposures",
         compute_scores=False,
