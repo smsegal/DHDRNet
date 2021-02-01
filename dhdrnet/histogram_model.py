@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import random_split
 
-from dhdrnet.Dataset import HistogramDataset
+from dhdrnet.dataset import HistogramDataset
 from dhdrnet.model import DHDRNet
 from dhdrnet.util import DATA_DIR, ROOT_DIR
 

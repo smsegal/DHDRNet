@@ -8,7 +8,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import models
 
-from dhdrnet.Dataset import RCDataset
+from dhdrnet.dataset import RCDataset
 from dhdrnet.model import DHDRNet
 from dhdrnet.util import ROOT_DIR
 
@@ -34,7 +34,6 @@ class RCNet(DHDRNet):
         )
         self.criterion = nn.MSELoss()
 
-        # duplicated code grosssss
         exp_min = -3
         exp_max = 6
         exp_step = 0.25
@@ -56,22 +55,6 @@ class RCNet(DHDRNet):
         )
         predicted_fused = predicted_fused.to(device="cuda:0")
         predicted_fused.requires_grad_(True)
-        # print(f"{all_fused_images.shape=}")
-        # print(f"{predicted_ev_idx.shape=}")
-        # print(f"{predicted_fused.shape=}")
-        # print(f"{ground_truth_images.shape=}")
-
-        # sys.exit()
-
-        # objective = sum(
-        #     [
-        #         sum([sum(fuse(x) + fuse(e) + 2 * fuse(gt)) for e in EV])
-        #         for x in images
-        #     ]
-        # )
-        # I want to pick the best ev in EV
-        # but how to translate from PDF to objective function?
-
         loss = F.mse_loss(predicted_fused, ground_truth_images)
         return loss
 

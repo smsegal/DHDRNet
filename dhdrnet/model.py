@@ -9,7 +9,7 @@ from torch.optim import lr_scheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 
-from dhdrnet.Dataset import LUTDataset
+from dhdrnet.dataset import LUTDataset
 from dhdrnet.squeezenet import squeezenet1_1
 
 
