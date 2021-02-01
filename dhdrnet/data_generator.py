@@ -4,7 +4,7 @@ from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Callable, Collection, List, Optional
+from typing import Callable, Collection, Dict, List, Optional
 
 import cv2 as cv
 import exifread
@@ -89,8 +89,11 @@ class DataGenerator:
                 "ssim": partial(structural_similarity, multichannel=True),
                 "lpips": LPIPS(),
             }
-            self.metric_fns = {k: v for k, v in all_metric_fns if k in metrics}
-            self.metrics = list(self.metric_fns.keys())
+            self.metric_fns: Dict[str, Callable] = {
+                k: v for k, v in all_metric_fns.items() if k in metrics
+            }
+
+            self.metrics = metrics
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
@@ -122,7 +125,7 @@ class DataGenerator:
             stats = self.stats_dispatch()
 
         stats_df = DataFrame.from_dict(stats)
-        print(f"computed all stats, saved in {self.store}")
+        print(f"computed all stats, saved in {self.store_path}")
         return stats_df
 
     def stats_dispatch(self):

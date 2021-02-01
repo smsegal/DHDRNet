@@ -1,26 +1,27 @@
 import sys
 from functools import partial
 from pathlib import Path
-from typing import Iterable, List, Optional, Union, TypeVar
+from typing import Iterable, List, Optional, Union
 
 import fire
 from plumbum import ProcessExecutionError, local
 from rich import print
 from tqdm.contrib.concurrent import thread_map
 
+from dhdrnet.data_generator import DataGenerator
+
 """
 Example URL:
 https://storage.cloud.google.com/hdrplusdata/20171106/results_20171023/0006_20160721_181503_256/merged.dng
+This is downloaded as data/0006_20160721_181503_256.dng
 """
 
 hdrplus_bucket_base = "hdrplusdata/20171106/results_20171023"
-hdrp_bucket_name = "hdrplusdata"
-hdrp_pre = "20171106"
 default_download_dir = Path("./data")
 
-gsutil = local["gsutil"]
-gslist = gsutil["ls"]
-gsdl = gsutil["cp"]
+gsutil = local["gsutil"]  # gsutil command
+gslist = gsutil["ls"]  # gsutil ls
+gsdl = gsutil["cp"]  # gsutil cp
 
 
 def get_image_names(url: str) -> Iterable[str]:
@@ -48,7 +49,7 @@ def download_file(fname: str, out_path: Path) -> Optional[Path]:
 
 def download(
     base_url: str = hdrplus_bucket_base,
-    out: Path = default_download_dir,
+    out: Union[str, Path] = default_download_dir,
     image_names: Optional[List[str]] = None,
     max_threads=10,
 ) -> List[Optional[Path]]:
@@ -56,8 +57,7 @@ def download(
     if image_names is None:
         image_names = list(get_image_names(base_url))
 
-    if not isinstance(out, Path):
-        out = Path(out)
+    out = coerce_path(out)
     if not out.exists():
         out.mkdir(parents=True)
 
@@ -88,7 +88,6 @@ def generate_data(
     max_exposure: float = 6,
     exposure_step: float = 0.25,
 ):
-    from .data_generator import DataGenerator
 
     download_dir = coerce_path(download_dir)
     out = coerce_path(out)
