@@ -1,11 +1,9 @@
-from typing import Dict, List, Union, Callable
+from typing import Callable
 
-import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
-from torch.optim import lr_scheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 
@@ -14,7 +12,7 @@ from dhdrnet.squeezenet import squeezenet1_1
 
 
 class DHDRNet(LightningModule):
-    def __init__(self, learning_rate=1e-3, batch_size=8, want_summary=False):
+    def __init__(self, learning_rate=1e-3, batch_size=8):
         super().__init__()
         self.num_classes = 36
         self.learning_rate = learning_rate
@@ -22,12 +20,6 @@ class DHDRNet(LightningModule):
         self.batch_size = batch_size
         self.Dataset = LUTDataset
         self.save_hyperparameters()
-
-    def print_summary(self, model, size):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
-        summary(model, (3, 300, 300))
-        del model
 
     def configure_optimizers(self):
         optimizer = Adam(self.parameters(), lr=self.learning_rate, weight_decay=1e-5)
@@ -89,8 +81,6 @@ class DHDRMobileNet_v2(DHDRNet):
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        # features = self.feature_extractor.features(x)
-        # print(f"{features.shape=}")
         x = self.feature_extractor(x)
         return x
 
@@ -113,20 +103,14 @@ class DHDRMobileNet_v3(DHDRNet):
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        # features = self.feature_extractor.features(x)
-        # print(f"{features.shape=}")
         x = self.feature_extractor(x)
         return x
 
 
 class DHDRSqueezeNet(DHDRNet):
-    def __init__(self, want_summary=False, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.inner_model = squeezenet1_1(pretrained=False, num_classes=self.num_classes)
-
-        if want_summary:
-            self.print_summary(self.inner_model, size=(1, 300, 300))
-
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
@@ -135,14 +119,9 @@ class DHDRSqueezeNet(DHDRNet):
 
 
 class DHDRSimple(DHDRNet):
-    def __init__(self, want_summary=False, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.model = self._simple_model(self.num_classes)
-
-        if want_summary:
-            self.print_summary(self.model, size=(1, 300, 300))
-
         self.criterion = nn.CrossEntropyLoss()
 
     def _simple_model(self, num_classes=100):

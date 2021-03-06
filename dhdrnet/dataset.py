@@ -1,9 +1,9 @@
 from pathlib import Path
+from typing import Collection, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-from deprecated import deprecated
 from more_itertools.more import one
 from more_itertools.recipes import flatten
 from PIL import Image
@@ -28,7 +28,9 @@ class LUTDataset(Dataset):
 
         names = flatten(pd.read_csv(name_list).to_numpy())
 
-        by_ev = df.pivot_table(index="name", columns=["metric", "ev"], values="score")
+        by_ev = pd.pivot_table(
+            data=df, index="name", columns=["metric", "ev"], values="score"
+        )
         by_ev = by_ev.loc[by_ev.index.intersection(names)]
 
         exp_min = -3
@@ -68,17 +70,48 @@ class LUTDataset(Dataset):
         return mid_exp, label_idx, img_name
 
 
+class CachingDataset(Dataset):
+    def __init__(
+        self,
+        data_dir: Path,
+        exposure_values: Iterable[float] = [-4, -2, 0, 2, 4],
+        metric="psnr",
+    ):
+        self.data_dir = data_dir
+        self.image_paths = list((data_dir / "dngs").iterdir())
+        self._len = len(self.image_paths)
+        self.exposure_values = exposure_values
+        self.metric = metric
+
+        self.data_generator = DataGenerator(
+            raw_path=data_dir / "dngs",
+            out_path=data_dir,
+            compute_scores=False,
+            multithreaded=True,
+        )
+
+    def __len__(self) -> int:
+        return self._len
+
+    def __getitem__(self, index):
+        image_name = self.image_paths[index].stem
+        exposure_images = list(
+            self.data_generator.get_exposures(
+                image_name, exposures=self.exposure_values
+            )
+        )
+        best_exposures = self.data_generator.get_best_evs(
+            image_name, self.exposure_values, metric=self.metric
+        )
+        return exposure_images, best_exposures
+
+
 class RCDataset(LUTDataset):
     def __getitem__(self, index):
         mid_exp, label, name = super().__getitem__(index)
         gt_image = self.generator.get_ground_truth(name)
         gt_image = Image.fromarray(gt_image[..., [2, 1, 0]])
         gt_image = self.transform(gt_image)
-        # fused_images  (
-        #     self.generator.get_reconstruction(name, 0.0, ev) for ev in self.evs
-        # )
-        # fused_images = (Image.fromarray(fi) for fi in fused_images)
-        # fused_images = torch.stack([self.transform(fi) for fi in fused_images])
         return mid_exp, gt_image, name, label
 
 
@@ -93,59 +126,3 @@ class HistogramDataset(LUTDataset):
     def __getitem__(self, index: int):
         mid_ev_image, label_idx, name = super().__getitem__(index)
         return torch.histc(mid_ev_image, bins=self.bins), label_idx, name
-
-
-@deprecated
-class HDRDataset(Dataset):
-    """HDR image dataset"""
-
-    def __init__(
-        self,
-        gt_dir: Path,
-        exp_dir: Path,
-        transform=None,
-    ):
-        self.gt_dir = gt_dir
-        self.exp_dir = exp_dir
-        self.gt_paths = list(self.gt_dir.iterdir())
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.gt_paths)
-
-    # a single sample from the training set will return a dict:
-    # { "exposures": [exp], "ground_truth": image, "name": filename}
-    # input to our network is middle-exposure image + randomly exposed image
-    # ground_truth is the _gold standard_ merged image
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.to_list()
-
-        gt_path = self.gt_paths[idx]
-        gt_image = Image.open(gt_path)
-
-        img_name = gt_path.stem
-        exposure_paths = sorted(
-            self.exp_dir.glob(f"{img_name}*"), key=lambda p: int(p.stem.split(".")[-1])
-        )
-
-        # mid exposure is only one that matches with a 0 at the end
-        mid_exposure_path = [ep for ep in exposure_paths if ep.stem.endswith("0")][0]
-        mid_exposure = Image.open(mid_exposure_path)
-
-        if self.transform:
-            gt_image = self.transform(gt_image)
-            mid_exposure = self.transform(mid_exposure)
-
-        return {
-            "exposure_paths": exposure_paths,
-            "mid_exposure": mid_exposure,
-            "ground_truth": gt_image,
-        }
-
-    @staticmethod
-    def collate_fn(batch):
-        exposure_paths = [b["exposure_paths"] for b in batch]
-        mid_exposure = torch.stack([b["mid_exposure"] for b in batch])
-        ground_truth = torch.stack([b["ground_truth"] for b in batch])
-        return exposure_paths, mid_exposure, ground_truth

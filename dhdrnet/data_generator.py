@@ -1,10 +1,10 @@
-import argparse
+import json
 import operator as op
 from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Callable, Collection, Dict, List, Optional
+from typing import Callable, Collection, Dict, Iterable, List, Mapping, Optional
 
 import cv2 as cv
 import exifread
@@ -15,6 +15,7 @@ import torch
 from lpips import LPIPS as LPIPS_orig
 from lpips import im2tensor
 from more_itertools import collapse, flatten, one
+from more_itertools.more import distinct_combinations
 from pandas import DataFrame
 from skimage.metrics import (
     mean_squared_error,
@@ -56,6 +57,7 @@ class DataGenerator:
         raw_path: Path,
         out_path: Path,
         store_path: Optional[Path] = None,
+        store_dir: Optional[Path] = None,
         compute_scores=True,
         exp_min: float = -3,
         exp_max: float = 6,
@@ -75,6 +77,13 @@ class DataGenerator:
         self.updown_out_path = self.out_path / "updown"
         self.gt_out_path = self.out_path / "ground_truth"
 
+        if not store_dir:
+            self.store_dir = self.raw_path.parent / "store"
+        else:
+            self.store_dir = store_dir
+
+        self.ev_store = self.store_dir / "best_evs.json"
+
         if image_names is None:
             self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
         elif isinstance(image_names, List):
@@ -82,24 +91,32 @@ class DataGenerator:
         else:
             self.image_names = list(flatten(pd.read_csv(image_names).to_numpy()))
 
-        if compute_scores:
-            all_metric_fns = {
-                "rmse": rmse,
-                "psnr": peak_signal_noise_ratio,
-                "ssim": partial(structural_similarity, multichannel=True),
-                "lpips": LPIPS(),
-            }
-            self.metric_fns: Dict[str, Callable] = {
-                k: v for k, v in all_metric_fns.items() if k in metrics
-            }
+        # if compute_scores:
+        all_metric_fns = {
+            "rmse": rmse,
+            "psnr": peak_signal_noise_ratio,
+            "ssim": partial(structural_similarity, multichannel=True),
+            "lpips": LPIPS(),
+        }
+        # stores directionality of metric (higher score is better --> 1, else -1)
+        self.metric_comparator = {
+            "rmse": np.fmin,
+            "psnr": np.fmax,
+            "ssim": np.fmax,
+            "lpips": np.fmin,
+        }
 
-            self.metrics = metrics
+        self.metric_fns: Dict[str, Callable] = {
+            k: v for k, v in all_metric_fns.items() if k in metrics
+        }
+        self.metrics = metrics
 
         self.exp_out_path.mkdir(parents=True, exist_ok=True)
         self.reconstructed_out_path.mkdir(parents=True, exist_ok=True)
         self.updown_out_path.mkdir(parents=True, exist_ok=True)
         self.gt_out_path.mkdir(parents=True, exist_ok=True)
         self.fused_out_path.mkdir(parents=True, exist_ok=True)
+        self.store_dir.mkdir(parents=True, exist_ok=True)
 
         if store_path:
             self.store_path: Path = store_path
@@ -116,6 +133,7 @@ class DataGenerator:
 
             self.store.to_csv(self.store_path, index=False)
 
+        self.best_evs = self.read_ev_store()
         self.multithreaded = multithreaded
 
     def __call__(self):
@@ -218,7 +236,7 @@ class DataGenerator:
     def get_fused(
         self,
         name: str,
-        ev_list: List[float],
+        ev_list: Iterable[float],
         out_path: Path = None,
         out_name: str = None,
     ) -> np.ndarray:
@@ -238,9 +256,80 @@ class DataGenerator:
             images = self.get_exposures(name, ev_list)
             fused_im = self.fuse_fn([im.astype("float32") for im in images])
             fused_im = np.clip(fused_im * 255, 0, 255).astype("uint8")
-
             cv.imwrite(str(fused_path), fused_im)
+
         return fused_im
+
+    def get_best_evs(
+        self, image_name: str, exposure_values: Iterable[float], metric: str
+    ):
+        key = (image_name, metric)
+        if key in self.best_evs:
+            return self.best_evs[key]
+
+        # best possible fused image (made of 5 fusions)
+        ground_truth = self.get_ground_truth(image_name)
+
+        if metric not in self.metric_fns:
+            raise ValueError(f"Metric {metric} is not one of {self.metric_fns.keys()}")
+
+        metric_fn = (
+            self.metric_fns[metric]
+            if metric in self.metric_fns
+            else self.metric_fns["rmse"]
+        )
+
+        # either np.min or np.max depending on metric being best at 0 or +inf
+        comparator = self.metric_comparator[metric]
+
+        best_score = np.nan
+        best_evs = (np.nan, np.nan)
+        for ev1, ev2 in distinct_combinations(exposure_values, 2):
+            fused = self.get_fused(name=image_name, ev_list=(ev1, ev2))
+            score = metric_fn(ground_truth, fused)
+
+            best_score = comparator(score, best_score)
+            if best_score == score:
+                best_evs = (ev1, ev2)
+
+        # make sure nothing has gone wrong
+        assert best_score != np.nan and all(b != np.nan for b in best_evs)
+
+        result = dict(
+            score=best_score,
+            evs=best_evs,
+        )
+        self.best_evs[key] = result
+
+        store_entry = {
+            **dict(
+                image_name=image_name,
+                exposure_values=exposure_values,
+                metric=metric,
+            ),
+            **result,
+        }
+        self.update_ev_store(store_entry)
+        return result
+
+    def update_ev_store(self, entry: Mapping):
+        with self.ev_store.open("a") as s:
+            json.dump(entry, s, separators=(",", ":"))
+            s.write("\n")
+
+    # store saved as list of json objects, one per line
+    def read_ev_store(self):
+        as_dict = dict()
+        store = self.ev_store
+        if store.exists():
+            store_df = pd.read_json(str(store), lines=True, orient="records")
+            store_dicts = store_df.to_dict(orient="records")
+            assert type(store_dicts) == List[Dict]
+            for d in store_dicts:
+                key = (d["image_name"], d["metric"])
+                as_dict[key] = {k: d[k] for k in ("score", "best_evs")}
+
+        return as_dict
 
 
 def rmse(a, b):
@@ -274,7 +363,6 @@ def exposures_from_raw(raw_path: Path, exposures: Collection, for_opencv=True):
                 :, :, channel_swapper
             ]
 
-            # uhh I think this might be swapping w/h
             newsize = tuple(postprocessed.shape[:2] // np.array([8]))[::-1]
             yield cv.resize(postprocessed, dsize=newsize, interpolation=cv.INTER_AREA)
 
@@ -327,30 +415,3 @@ class LPIPS:
 
         dist = one(collapse(self.model.forward(ima_t, imb_t).data.cpu().numpy()))
         return dist
-
-
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Generate stats and images")
-
-#     parser.add_argument("--out-path", "-o", help="where to save the processed files")
-#     parser.add_argument("--raw-path", help="location of raw files")
-#     parser.add_argument(
-#         "--store-path",
-#         help="file to store data in (created if does not exist)",
-#         default="store",
-#     )
-
-#     parser.add_argument("--image-names", default=None)
-
-#     parser.add_argument("--exp-min", default=-3)
-#     parser.add_argument("--exp-max", default=6)
-#     parser.add_argument("--exp-step", default=0.25)
-#     parser.add_argument(
-#         "--multithread", help="single threaded mode", action="store_true"
-#     )
-#     parser.add_argument(
-#         "--updown", help="compute the updown strategy", action="store_true"
-#     )
-
-#     args = parser.parse_args()
-#     main(args)
