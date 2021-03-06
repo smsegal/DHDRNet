@@ -76,12 +76,14 @@ class CachingDataset(Dataset):
         data_dir: Path,
         exposure_values: Iterable[float] = [-4, -2, 0, 2, 4],
         metric="psnr",
+        transform=transforms.ToTensor(),
     ):
         self.data_dir = data_dir
         self.image_paths = list((data_dir / "dngs").iterdir())
         self._len = len(self.image_paths)
         self.exposure_values = exposure_values
         self.metric = metric
+        self.transform = transform
 
         self.data_generator = DataGenerator(
             raw_path=data_dir / "dngs",
@@ -95,15 +97,18 @@ class CachingDataset(Dataset):
 
     def __getitem__(self, index):
         image_name = self.image_paths[index].stem
-        exposure_images = list(
-            self.data_generator.get_exposures(
-                image_name, exposures=self.exposure_values
+        exposure_images = [
+            self.transform(img)
+            for img in (
+                self.data_generator.get_exposures(
+                    image_name, exposures=self.exposure_values
+                )
             )
-        )
-        best_exposures = self.data_generator.get_best_evs(
+        ]
+        res = self.data_generator.get_best_evs(
             image_name, self.exposure_values, metric=self.metric
         )
-        return exposure_images, best_exposures
+        return exposure_images, res
 
 
 class RCDataset(LUTDataset):

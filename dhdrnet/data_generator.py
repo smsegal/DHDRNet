@@ -96,7 +96,7 @@ class DataGenerator:
             "rmse": rmse,
             "psnr": peak_signal_noise_ratio,
             "ssim": partial(structural_similarity, multichannel=True),
-            "lpips": LPIPS(),
+            # "lpips": LPIPS(),
         }
         # stores directionality of metric (higher score is better --> 1, else -1)
         self.metric_comparator = {
@@ -324,10 +324,10 @@ class DataGenerator:
         if store.exists():
             store_df = pd.read_json(str(store), lines=True, orient="records")
             store_dicts = store_df.to_dict(orient="records")
-            assert type(store_dicts) == List[Dict]
+            assert type(store_dicts) == list
             for d in store_dicts:
                 key = (d["image_name"], d["metric"])
-                as_dict[key] = {k: d[k] for k in ("score", "best_evs")}
+                as_dict[key] = {k: d[k] for k in ("score", "evs")}
 
         return as_dict
 
