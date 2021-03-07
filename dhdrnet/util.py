@@ -6,7 +6,8 @@ from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdo
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
-from typing import DefaultDict, Iterator, List, Mapping, Set, TypeVar
+from typing import DefaultDict, Iterable, Iterator, List, Mapping, Set, Tuple, TypeVar
+from more_itertools.more import distinct_combinations
 
 import numpy as np
 import pandas as pd
@@ -280,6 +281,7 @@ def get_worst_preds(pred_df, score_df, metric, dir, n=10):
     )
     return worst_n
 
+
 def get_best_preds(pred_df, score_df, metric, dir, n=10):
     if dir == "up":  # just flipped from worse
         ascending = False
@@ -294,11 +296,6 @@ def get_best_preds(pred_df, score_df, metric, dir, n=10):
         .head(n)
     )
     return best_n
-
-
-# TODO
-def get_furthest_pred(pred_df, score_df, n=10):
-    preds = get_pred(pred_df, score_df)
 
 
 def get_topk_score_df(df, k=5):
@@ -322,3 +319,13 @@ def get_topk_score_df(df, k=5):
 
     topk = pd.concat(topk_dfs)
     return topk
+
+
+def evpairs_to_classes(
+    exposure_values: Iterable[float],
+) -> Mapping[Tuple[float, float], int]:
+    class_mapping = {
+        (ev1, ev2): i
+        for i, (ev1, ev2) in enumerate(distinct_combinations(exposure_values, 2))
+    }
+    return class_mapping
