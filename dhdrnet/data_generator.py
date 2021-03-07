@@ -4,7 +4,7 @@ from collections import defaultdict
 from functools import partial, reduce
 from itertools import product
 from pathlib import Path
-from typing import Callable, Collection, Dict, Iterable, List, Mapping, Optional
+from typing import Callable, Collection, Dict, Iterable, List, Mapping, Optional, Tuple
 
 import cv2 as cv
 import exifread
@@ -83,6 +83,7 @@ class DataGenerator:
             self.store_dir = store_dir
 
         self.ev_store = self.store_dir / "best_evs.json"
+        self.best_evs = self.read_ev_store()
 
         if image_names is None:
             self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
@@ -133,7 +134,6 @@ class DataGenerator:
 
             self.store.to_csv(self.store_path, index=False)
 
-        self.best_evs = self.read_ev_store()
         self.multithreaded = multithreaded
 
     def __call__(self):
@@ -262,14 +262,40 @@ class DataGenerator:
 
     def get_best_evs(
         self, image_name: str, exposure_values: Iterable[float], metric: str
-    ):
-        key = (image_name, metric)
+    ) -> Tuple[float, Tuple[float, float]]:
+        """
+        either retrieves the cached best evs for a given image, metric, and a
+        set of possible exposure values, or computes it on demand and caches the
+        result for future use
+        """
+        key = (image_name, tuple(exposure_values), metric)
         if key in self.best_evs:
-            return self.best_evs[key]
+            best_score = self.best_evs[key]["score"]
+            best_evs = self.best_evs[key]["evs"]
+            return best_score, best_evs
 
-        # best possible fused image (made of 5 fusions)
-        ground_truth = self.get_ground_truth(image_name)
+        best_score, best_evs = self._compute_best_evs(
+            image_name, exposure_values, metric
+        )
 
+        self.best_evs[key] = dict(
+            score=best_score,
+            evs=best_evs,
+        )
+
+        # create dict of all relevant information to be appended to the json file backing the ev store
+        store_entry = {
+            **dict(
+                image_name=image_name,
+                exposure_values=exposure_values,
+                metric=metric,
+            ),
+            **self.best_evs[key],
+        }
+        self.update_ev_store(store_entry)
+        return best_score, best_evs
+
+    def _get_metric_comparator(self, metric: str) -> Tuple[Callable, Callable]:
         if metric not in self.metric_fns:
             raise ValueError(f"Metric {metric} is not one of {self.metric_fns.keys()}")
 
@@ -278,10 +304,21 @@ class DataGenerator:
             if metric in self.metric_fns
             else self.metric_fns["rmse"]
         )
-
         # either np.min or np.max depending on metric being best at 0 or +inf
         comparator = self.metric_comparator[metric]
 
+        return metric_fn, comparator
+
+    def _compute_best_evs(
+        self,
+        image_name: str,
+        exposure_values: Iterable[float],
+        metric: str,
+    ):
+
+        metric_fn, comparator = self._get_metric_comparator(metric)
+        # best possible fused image (made of 5 fusions)
+        ground_truth = self.get_ground_truth(image_name)
         best_score = np.nan
         best_evs = (np.nan, np.nan)
         for ev1, ev2 in distinct_combinations(exposure_values, 2):
@@ -294,23 +331,7 @@ class DataGenerator:
 
         # make sure nothing has gone wrong
         assert best_score != np.nan and all(b != np.nan for b in best_evs)
-
-        result = dict(
-            score=best_score,
-            evs=best_evs,
-        )
-        self.best_evs[key] = result
-
-        store_entry = {
-            **dict(
-                image_name=image_name,
-                exposure_values=exposure_values,
-                metric=metric,
-            ),
-            **result,
-        }
-        self.update_ev_store(store_entry)
-        return result
+        return best_score, best_evs
 
     def update_ev_store(self, entry: Mapping):
         with self.ev_store.open("a") as s:
@@ -324,10 +345,11 @@ class DataGenerator:
         if store.exists():
             store_df = pd.read_json(str(store), lines=True, orient="records")
             store_dicts = store_df.to_dict(orient="records")
-            assert type(store_dicts) == list
+
+            assert isinstance(store_dicts, list)
             for d in store_dicts:
-                key = (d["image_name"], d["metric"])
-                as_dict[key] = {k: d[k] for k in ("score", "evs")}
+                key = (d["image_name"], tuple(d["exposure_values"]), d["metric"])
+                as_dict[key] = {"score": d["score"], "evs": tuple(d["evs"])}
 
         return as_dict
 
