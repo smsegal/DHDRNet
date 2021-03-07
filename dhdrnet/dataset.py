@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 from dhdrnet.data_generator import DataGenerator
+from dhdrnet.util import evpairs_to_classes
 
 
 class LUTDataset(Dataset):
@@ -84,6 +85,7 @@ class CachingDataset(Dataset):
         self.exposure_values = exposure_values
         self.metric = metric
         self.transform = transform
+        self.evpairs_to_class = evpairs_to_classes(exposure_values)
 
         self.data_generator = DataGenerator(
             raw_path=data_dir / "dngs",
@@ -97,18 +99,22 @@ class CachingDataset(Dataset):
 
     def __getitem__(self, index):
         image_name = self.image_paths[index].stem
-        exposure_images = [
-            self.transform(img)
-            for img in (
-                self.data_generator.get_exposures(
-                    image_name, exposures=self.exposure_values
+        exposure_images = torch.stack(
+            [
+                self.transform(img)
+                for img in (
+                    self.data_generator.get_exposures(
+                        image_name, exposures=self.exposure_values
+                    )
                 )
-            )
-        ]
-        res = self.data_generator.get_best_evs(
+            ],
+            dim=0,
+        )
+        score, best_ev_pair = self.data_generator.get_best_evs(
             image_name, self.exposure_values, metric=self.metric
         )
-        return exposure_images, res
+        evpair_class = self.evpairs_to_class[best_ev_pair]
+        return exposure_images, evpair_class, score
 
 
 class RCDataset(LUTDataset):
