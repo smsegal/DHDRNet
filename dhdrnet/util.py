@@ -6,7 +6,17 @@ from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdo
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
-from typing import DefaultDict, Iterable, Iterator, List, Mapping, Set, Tuple, TypeVar
+from typing import (
+    DefaultDict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+)
 from more_itertools.more import distinct_combinations
 
 import numpy as np
@@ -329,3 +339,12 @@ def evpairs_to_classes(
         for i, (ev1, ev2) in enumerate(distinct_combinations(exposure_values, 2))
     }
     return class_mapping
+
+
+def get_valid_exp_path(logdir: Path, exp_name: Optional[str] = None) -> Path:
+    if exp_name is None or (logdir / f"exp_{exp_name}").exists():
+        name_parts = (f.stem.split("_")[-1] for f in logdir.glob("exp_*"))
+        max_exp_num = max(int(p) for p in name_parts if p.isdigit())
+        return logdir / f"exp_{max_exp_num+1}"
+    else:
+        return logdir / f"exp_{exp_name}"

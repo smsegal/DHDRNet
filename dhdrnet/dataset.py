@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Collection, Iterable, List, Tuple
+from typing import Collection, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -75,17 +75,26 @@ class CachingDataset(Dataset):
     def __init__(
         self,
         data_dir: Path,
+        image_names: Optional[Iterable[str]] = None,
         exposure_values: Iterable[float] = [-4, -2, 0, 2, 4],
         metric="psnr",
         transform=transforms.ToTensor(),
     ):
         self.data_dir = data_dir
-        self.image_paths = list((data_dir / "dngs").iterdir())
-        self._len = len(self.image_paths)
         self.exposure_values = exposure_values
         self.metric = metric
         self.transform = transform
         self.evpairs_to_class = evpairs_to_classes(exposure_values)
+
+        if image_names is not None:
+            potential_image_paths = (
+                (data_dir / f"dngs/{name}.dng") for name in image_names
+            )
+            self.image_paths = [ip for ip in potential_image_paths if ip.exists()]
+        else:
+            self.image_paths = list((data_dir / "dngs").iterdir())
+
+        self._len = len(self.image_paths)
 
         self.data_generator = DataGenerator(
             raw_path=data_dir / "dngs",

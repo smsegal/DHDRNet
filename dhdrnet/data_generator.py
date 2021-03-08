@@ -284,15 +284,15 @@ class DataGenerator:
         )
 
         # create dict of all relevant information to be appended to the json file backing the ev store
-        # store_entry = {
-        #     **dict(
-        #         image_name=image_name,
-        #         exposure_values=exposure_values,
-        #         metric=metric,
-        #     ),
-        #     **self.best_evs[key],
-        # }
-        # self.update_ev_store(store_entry)
+        store_entry = {
+            **dict(
+                image_name=image_name,
+                exposure_values=exposure_values,
+                metric=metric,
+            ),
+            **self.best_evs[key],
+        }
+        self.update_ev_store(store_entry)
         return best_score, best_evs
 
     def _get_metric_comparator(self, metric: str) -> Tuple[Callable, Callable]:
