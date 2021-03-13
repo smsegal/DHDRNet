@@ -13,7 +13,7 @@ from torch.optim import Adam, Optimizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.tensor import Tensor
 from torch.types import Device
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torch.utils.data.dataset import random_split
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
@@ -31,21 +31,18 @@ def fit_epoch(
     loader: DataLoader,
     loss_fn: nn.Module,
     optimizer: Optimizer,
-    validate: Callable,
+    validate_fn: Callable,
     val_steps: int,  # validate every val_steps steps
     writer: SummaryWriter,
 ) -> Tuple[torch.Tensor, List, float]:
     model.train()
     time_start = time.time()
-    last_idx = len(loader)
 
     train_losses = []
     val_losses = []
     val_counter = 0
     train_iter = tqdm(loader, desc="Train", leave=False)
     for idx, (input, target, score) in enumerate(train_iter):
-        last_batch = idx == last_idx
-
         input, target = input.to(device), target.to(device)
 
         optimizer.zero_grad()
@@ -60,11 +57,9 @@ def fit_epoch(
         # if use_cuda:
         #     torch.cuda.synchronize()
 
-        train_duration = time_start - time.time()
-
         train_iter.set_postfix({"train_loss": loss.item(), "batch_idx": idx})
         if idx % val_steps == 0:
-            val_loss, val_duration = validate(
+            val_loss, val_duration = validate_fn(
                 model=model, device=device, loss_fn=loss_fn
             )
             writer.add_scalar("Loss/val", val_loss)
@@ -83,7 +78,6 @@ def validate(
     with torch.no_grad():
         val_loss = []
         time_start = time.time()
-        duration = 0
         val_iter = tqdm(loader, desc="Val", leave=False)
         for idx, (input, target, score) in enumerate(val_iter):
             input, target = input.to(device), target.to(device)
@@ -117,6 +111,7 @@ def fit(
         num_epochs,
         desc="Epochs",
     )
+    epoch_loss = epoch_val_loss = None
     for epoch in epoch_iter:
         epoch_loss, val_losses, epoch_duration = fit_epoch(
             epoch,
@@ -126,7 +121,7 @@ def fit(
             loss_fn,
             optimizer,
             val_steps=50,
-            validate=partial(
+            validate_fn=partial(
                 validate,
                 loader=val_loader,
                 scheduler=scheduler,
@@ -141,7 +136,7 @@ def fit(
         writer.add_scalar("Loss/epoch_train", epoch_loss, epoch)
         writer.add_scalar("Loss/epoch_val", epoch_val_loss, epoch)
     writer.close()
-    return {"train_loss_final": epoch_loss, "val_loss_final": epoch_val_loss}
+    return dict(train_loss_final=epoch_loss, val_loss_final=epoch_val_loss)
 
 
 def test_model(

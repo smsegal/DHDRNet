@@ -6,31 +6,13 @@ from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdo
 from math import ceil
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
-from typing import (
-    DefaultDict,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
-    Optional,
-    Set,
-    Tuple,
-    TypeVar,
-)
-from more_itertools.more import distinct_combinations
+from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
 from more_itertools import flatten
+from more_itertools.more import distinct_combinations
 from PIL import Image
-
-T = TypeVar("T")
-
-
-class Indexable(Mapping[int, T]):
-    def __init__(self, *args, **kwargs):
-        super(self, *args, **kwargs)
-
 
 root_env_keys = ("IDE_PROJECT_ROOTS", "DHDR_ROOT")
 
@@ -110,11 +92,6 @@ def get_mid_exp(path: Path):
     name = get_img_name(path)
     possible_exps = path.parent.glob(f"{name}.0.*")
     return next(possible_exps)
-
-
-def min_shape(images: List):
-    shapes = (im.shape for im in images)
-    return map(min, zip(*shapes))
 
 
 def min_centercrop(images: List):
@@ -259,27 +236,27 @@ def get_scores_for_preds(pred_df, score_df):
     Get the scores for each metric associated with each of the topk
     predictions per image stored in pred_df from score_df
     """
-    score_list = (
+    score_list = [
         score_df.loc[(score_df["name"] == name) & (score_df["ev"].isin(pred))]
         for _, (name, pred) in pred_df.iterrows()
-    )
+    ]
     scores = pd.concat(score_list).drop_duplicates()
     return scores
 
 
 def get_pred(pred_df, score_df):
-    score_list = (
+    score_list = [
         score_df.loc[(score_df["name"] == name) & (score_df["ev"] == pred[0])]
         for _, (name, pred) in pred_df.iterrows()
-    )
+    ]
     scores = pd.concat(score_list).drop_duplicates()
     return scores
 
 
-def get_worst_preds(pred_df, score_df, metric, dir, n=10):
-    if dir == "up":  # higher scores are worse
+def get_worst_preds(pred_df, score_df, metric, sort_direction, n=10):
+    if sort_direction == "up":  # higher scores are worse
         ascending = True
-    elif dir == "down":
+    elif sort_direction == "down":
         ascending = False
 
     scores = get_scores_for_preds(pred_df, score_df)
@@ -345,6 +322,6 @@ def get_valid_exp_path(logdir: Path, exp_name: Optional[str] = None) -> Path:
     if exp_name is None or (logdir / f"exp_{exp_name}").exists():
         name_parts = (f.stem.split("_")[-1] for f in logdir.glob("exp_*"))
         max_exp_num = max(int(p) for p in name_parts if p.isdigit())
-        return logdir / f"exp_{max_exp_num+1}"
+        return logdir / f"exp_{max_exp_num + 1}"
     else:
         return logdir / f"exp_{exp_name}"

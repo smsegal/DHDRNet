@@ -8,11 +8,11 @@ from typing import Callable, Collection, Dict, Iterable, List, Mapping, Optional
 
 import cv2 as cv
 import exifread
+import lpips
 import numpy as np
 import pandas as pd
 import rawpy
 import torch
-from lpips import LPIPS as LPIPS_orig
 from lpips import im2tensor
 from more_itertools import collapse, flatten, one
 from more_itertools.more import distinct_combinations
@@ -51,6 +51,10 @@ def main(args):
         data.to_csv(args.store_path)
 
 
+def fuse_fn(images) -> np.ndarray:
+    return cv.createMergeMertens().process(images)
+
+
 class DataGenerator:
     def __init__(
         self,
@@ -64,8 +68,10 @@ class DataGenerator:
         exp_step: float = 0.25,
         multithreaded: bool = True,
         image_names=None,
-        metrics: List[str] = ["rmse", "psnr", "ssim", "lpips"],
+        metrics=None,
     ):
+        if metrics is None:
+            metrics = ["rmse", "psnr", "ssim", "lpips"]
         self.exposures: np.ndarray = np.linspace(
             exp_min, exp_max, int((exp_max - exp_min) / exp_step + 1)
         )
@@ -230,9 +236,6 @@ class DataGenerator:
             name, ev_list=[ev1, ev2], out_path=self.reconstructed_out_path
         )
 
-    def fuse_fn(self, images) -> np.ndarray:
-        return cv.createMergeMertens().process(images)
-
     def get_fused(
         self,
         name: str,
@@ -254,7 +257,7 @@ class DataGenerator:
         else:
             # print(f"generating fused file: {fused_path}", sys.stderr)
             images = self.get_exposures(name, ev_list)
-            fused_im = self.fuse_fn([im.astype("float32") for im in images])
+            fused_im = fuse_fn([im.astype("float32") for im in images])
             fused_im = np.clip(fused_im * 255, 0, 255).astype("uint8")
             cv.imwrite(str(fused_path), fused_im)
 
@@ -274,9 +277,12 @@ class DataGenerator:
             best_evs = self.best_evs[key]["evs"]
             return best_score, best_evs
 
-        best_score, best_evs = self._compute_best_evs(
-            image_name, exposure_values, metric
-        )
+        try:
+            best_score, best_evs = self._compute_best_evs(
+                image_name, exposure_values, metric
+            )
+        except AttributeError:
+            raise ValueError(f"Problem with {image_name=}")
 
         self.best_evs[key] = dict(
             score=best_score,
@@ -425,7 +431,7 @@ class LPIPS:
     def __init__(self, net: str = "alex") -> None:
         self.net: str = net
         self.usegpu: bool = torch.cuda.is_available()
-        self.model: nn.Module = LPIPS_orig(net=net, spatial=False)
+        self.model: nn.Module = lpips.LPIPS(net=net, spatial=False)
         if self.usegpu:
             self.model = self.model.cuda()
 

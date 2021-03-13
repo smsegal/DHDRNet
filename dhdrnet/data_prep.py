@@ -1,14 +1,19 @@
 import sys
 from functools import partial
+from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Iterable, List, Optional, Union
 
 import fire
 from plumbum import ProcessExecutionError, local
 from rich import print
+from torch.utils.data.dataloader import DataLoader
+from torchvision import transforms
 from tqdm.contrib.concurrent import thread_map
+from tqdm.std import tqdm
 
 from dhdrnet.data_generator import DataGenerator
+from dhdrnet.dataset import CachingDataset
 
 """
 Example URL:
@@ -78,6 +83,29 @@ def coerce_path(maybe_path: Union[Path, str]) -> Path:
         return maybe_path
 
 
+def gen_ev_pair_data(data_dir):
+    exposure_vals = [-5, -3, -1, 0, 1, 3, 5]
+    ds = CachingDataset(
+        data_dir=Path(data_dir),
+        exposure_values=exposure_vals,
+        transform=transforms.Compose(
+            [
+                transforms.ToPILImage(),
+                transforms.Resize((300, 300)),
+                transforms.ToTensor(),
+            ]
+        ),
+    )
+    dl = DataLoader(ds, batch_size=10, num_workers=cpu_count())
+    # ev_pairs_dict = {v: k for (k, v) in evpairs_to_classes(exposure_vals).items()}
+    for batch in tqdm(dl):
+        images, ev_classes, scores = batch
+        # ev_pairs = [ev_pairs_dict[ev_class.item()] for ev_class in ev_classes]
+        # print(f"{images.shape=}")
+        # print(f"{ev_pairs=}")
+        # print(f"{scores=}")
+
+
 def generate_data(
     download_dir: Union[str, Path] = default_download_dir,
     out: Union[str, Path] = Path("./generated_data"),
@@ -108,4 +136,10 @@ def generate_data(
 
 
 if __name__ == "__main__":
-    fire.Fire({"download": download, "generate-data": generate_data})
+    fire.Fire(
+        {
+            "download": download,
+            "generate-data": generate_data,
+            "generate-ev-data": gen_ev_pair_data,
+        }
+    )

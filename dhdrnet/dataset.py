@@ -72,16 +72,21 @@ class LUTDataset(Dataset):
 
 
 class CachingDataset(Dataset):
+    image_paths: List[Path]
+
     def __init__(
         self,
         data_dir: Path,
         image_names: Optional[Iterable[str]] = None,
-        exposure_values: Iterable[float] = [-4, -2, 0, 2, 4],
+        exposure_values=None,
         metric="psnr",
         transform=transforms.ToTensor(),
     ):
-        self.data_dir = data_dir
+        if exposure_values is None:
+            self.exposure_values = [-4, -2, 0, 2, 4]
         self.exposure_values = exposure_values
+
+        self.data_dir = data_dir
         self.metric = metric
         self.transform = transform
         self.evpairs_to_class = evpairs_to_classes(exposure_values)
