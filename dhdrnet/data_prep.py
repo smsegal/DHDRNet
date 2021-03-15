@@ -1,19 +1,20 @@
+from tqdm.std import tqdm
+from dhdrnet.util import evpairs_to_classes
+from multiprocessing import cpu_count
+from torch.utils.data.dataloader import DataLoader
+from torchvision import transforms
+from dhdrnet.dataset import CachingDataset
 import sys
 from functools import partial
-from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Iterable, List, Optional, Union
 
 import fire
 from plumbum import ProcessExecutionError, local
 from rich import print
-from torch.utils.data.dataloader import DataLoader
-from torchvision import transforms
 from tqdm.contrib.concurrent import thread_map
-from tqdm.std import tqdm
 
 from dhdrnet.data_generator import DataGenerator
-from dhdrnet.dataset import CachingDataset
 
 """
 Example URL:
@@ -24,9 +25,9 @@ This is downloaded as data/0006_20160721_181503_256.dng
 hdrplus_bucket_base = "hdrplusdata/20171106/results_20171023"
 default_download_dir = Path("./data")
 
-gsutil = local["gsutil"]  # gsutil command
-gslist = gsutil["ls"]  # gsutil ls
-gsdl = gsutil["cp"]  # gsutil cp
+# gsutil = local["gsutil"]  # gsutil command
+# gslist = gsutil["ls"]  # gsutil ls
+# gsdl = gsutil["cp"]  # gsutil cp
 
 
 def get_image_names(url: str) -> Iterable[str]:
@@ -97,9 +98,13 @@ def gen_ev_pair_data(data_dir):
         ),
     )
     dl = DataLoader(ds, batch_size=10, num_workers=cpu_count())
-    # really taking advantage of the pytorch dataloader here
+    # ev_pairs_dict = {v: k for (k, v) in evpairs_to_classes(exposure_vals).items()}
     for batch in tqdm(dl):
-        _ = batch
+        images, ev_classes, scores = batch
+        # ev_pairs = [ev_pairs_dict[ev_class.item()] for ev_class in ev_classes]
+        # print(f"{images.shape=}")
+        # print(f"{ev_pairs=}")
+        # print(f"{scores=}")
 
 
 def generate_data(
@@ -117,7 +122,7 @@ def generate_data(
     out = coerce_path(out)
     stats_path = coerce_path(stats_path)
 
-    DataGenerator(
+    generator = DataGenerator(
         raw_path=download_dir,
         out_path=out,
         multithreaded=multithreaded,
@@ -127,7 +132,8 @@ def generate_data(
         compute_scores=compute_stats,
         store_path=stats_path,
         image_names=[d.stem for d in download_dir.iterdir()],
-    )()
+    )
+    generator()
 
 
 if __name__ == "__main__":
