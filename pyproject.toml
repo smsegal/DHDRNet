@@ -5,7 +5,7 @@ description = ""
 authors = ["Shane Segal <shane@smsegal.ca>"]
 
 [tool.poetry.dependencies]
-python = "~3.8"
+python = "^3.7"
 scikit-image = "^0.16.2"
 more-itertools = "^8.2.0"
 pillow = "^7.0.0"
