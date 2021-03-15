@@ -93,7 +93,7 @@ class DataGenerator:
         self.best_evs = self.read_ev_store()
 
         if image_names is None:
-            self.image_names = [p.stem for p in (DATA_DIR / "ground_truth").iterdir()]
+            self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
         elif isinstance(image_names, List):
             self.image_names = image_names
         else:
