@@ -1,0 +1,17 @@
+fire==0.4.0
+numpy==1.20.1
+opencv-python-headless==4.5.1.48
+pandas==1.2.3
+Pillow==8.1.2
+python-dateutil==2.8.1
+pytorch-msssim==0.2.1
+pytz==2021.1
+scipy==1.6.1
+sewar==0.4.4
+six==1.15.0
+termcolor==1.1.0
+timm==0.4.5
+torch==1.8.0
+torchvision==0.9.0
+tqdm==4.59.0
+typing-extensions==3.7.4.3
