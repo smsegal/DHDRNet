@@ -228,7 +228,7 @@ def dprint(obj):
     """
     debug the object passed in
     """
-    print(f"{obj=}")
+    print(f"{obj}")
 
 
 def get_scores_for_preds(pred_df, score_df):

@@ -93,16 +93,16 @@ class CachingDataset(Dataset):
 
         if image_names is not None:
             potential_image_paths = (
-                (data_dir / f"dngs/{name}.dng") for name in image_names
+                (data_dir / f"ground_truth/{name}.png") for name in image_names
             )
             self.image_paths = [ip for ip in potential_image_paths if ip.exists()]
         else:
-            self.image_paths = list((data_dir / "dngs").iterdir())
+            self.image_paths = list((data_dir / "ground_truth").iterdir())
 
         self._len = len(self.image_paths)
 
         self.data_generator = DataGenerator(
-            raw_path=data_dir / "dngs",
+            raw_path=data_dir / "ground_truth",
             out_path=data_dir,
             compute_scores=False,
             multithreaded=True,

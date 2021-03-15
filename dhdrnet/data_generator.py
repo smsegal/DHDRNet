@@ -26,7 +26,8 @@ from torch import nn
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
-from dhdrnet.util import DATA_DIR
+# from dhdrnet.util import DATA_DIR
+DATA_DIR=Path("/content/drive/MyDrive/hdr+")
 
 
 def main(args):
@@ -92,7 +93,7 @@ class DataGenerator:
         self.best_evs = self.read_ev_store()
 
         if image_names is None:
-            self.image_names = [p.stem for p in (DATA_DIR / "dngs").iterdir()]
+            self.image_names = [p.stem for p in (DATA_DIR / "ground_truth").iterdir()]
         elif isinstance(image_names, List):
             self.image_names = image_names
         else:
@@ -282,7 +283,7 @@ class DataGenerator:
                 image_name, exposure_values, metric
             )
         except AttributeError:
-            raise ValueError(f"Problem with {image_name=}")
+            raise ValueError(f"Problem with {image_name}")
 
         self.best_evs[key] = dict(
             score=best_score,
