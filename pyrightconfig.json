@@ -1,6 +1,5 @@
 {
   "exclude": ["**/node_modules", "**/__pycache__", "data", "precomputed_data"],
   "include": ["dhdrnet"],
-  "venvPath": "$HOME/.cache/pypoetry/virtualenvs",
-  "venv": "dhdrnet-CxDQYEDG-py3.8"
+  "useLibraryCodeForTypes": true
 }
