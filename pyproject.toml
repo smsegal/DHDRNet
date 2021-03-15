@@ -47,6 +47,7 @@ altair = "^4.1.0"
 data-science-types = "^0.2.17"
 black = {version = "^20.8b1", allow-prereleases = true}
 ipympl = "^0.6.3"
+tensorboardX = "^2.1"
 
 [tool.isort]
 profile = "black"

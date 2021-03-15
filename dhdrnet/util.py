@@ -269,20 +269,8 @@ def get_worst_preds(pred_df, score_df, metric, sort_direction, n=10):
     return worst_n
 
 
-def get_best_preds(pred_df, score_df, metric, dir, n=10):
-    if dir == "up":  # just flipped from worse
-        ascending = False
-    elif dir == "down":
-        ascending = True
-
-    scores = get_scores_for_preds(pred_df, score_df)
-
-    best_n = (
-        scores[scores["metric"] == metric]
-        .sort_values(by="score", ascending=ascending)
-        .head(n)
-    )
-    return best_n
+def get_best_preds(sort_direction="down", *args, **kwargs):
+    get_worst_preds(*args, **kwargs, sort_direction=sort_direction)
 
 
 def get_topk_score_df(df, k=5):

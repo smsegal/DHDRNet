@@ -97,13 +97,9 @@ def gen_ev_pair_data(data_dir):
         ),
     )
     dl = DataLoader(ds, batch_size=10, num_workers=cpu_count())
-    # ev_pairs_dict = {v: k for (k, v) in evpairs_to_classes(exposure_vals).items()}
+    # really taking advantage of the pytorch dataloader here
     for batch in tqdm(dl):
-        images, ev_classes, scores = batch
-        # ev_pairs = [ev_pairs_dict[ev_class.item()] for ev_class in ev_classes]
-        # print(f"{images.shape=}")
-        # print(f"{ev_pairs=}")
-        # print(f"{scores=}")
+        _ = batch
 
 
 def generate_data(
@@ -121,7 +117,7 @@ def generate_data(
     out = coerce_path(out)
     stats_path = coerce_path(stats_path)
 
-    generator = DataGenerator(
+    DataGenerator(
         raw_path=download_dir,
         out_path=out,
         multithreaded=multithreaded,
@@ -131,8 +127,7 @@ def generate_data(
         compute_scores=compute_stats,
         store_path=stats_path,
         image_names=[d.stem for d in download_dir.iterdir()],
-    )
-    generator()
+    )()
 
 
 if __name__ == "__main__":
