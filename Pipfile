@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+torch = "*"
+torchvision = "*"
+pandas = "*"
+scikit-image = "*"
+torchmetrics = "*"
+pytorch-lightning = "*"
+rawpy = "*"
+tqdm = "*"
+opencv-python-headless = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
